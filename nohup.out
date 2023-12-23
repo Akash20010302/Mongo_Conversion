@@ -1,0 +1,216 @@
+INFO:     Will watch for changes in these directories: ['/home/ubuntu/report_backend']
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     Started reloader process [241062] using StatReload
+INFO:     Started server process [241090]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     5.196.69.140:60057 - "GET / HTTP/1.0" 404 Not Found
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+INFO:     143.244.148.218:47290 - "GET / HTTP/1.1" 404 Not Found
+WARNING:  Invalid HTTP request received.
+WARNING:  Invalid HTTP request received.
+INFO:     49.36.121.68:51459 - "GET /financial_stability/16 HTTP/1.1" 200 OK
+INFO:     49.36.121.68:51487 - "GET /financial_stability/16 HTTP/1.1" 200 OK
+INFO:     49.36.121.68:51564 - "OPTIONS /financial_stability/16 HTTP/1.1" 405 Method Not Allowed
+INFO:     49.36.121.68:51659 - "GET /financial_stability/16 HTTP/1.1" 200 OK
+INFO:     49.36.121.68:51658 - "GET /credit_standing/16 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/protocols/http/h11_impl.py", line 408, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/middleware/proxy_headers.py", line 84, in __call__
+    return await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/applications.py", line 289, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/applications.py", line 122, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 184, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 79, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 20, in __call__
+    raise e
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 66, in app
+    response = await func(request)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 273, in app
+    raw_response = await run_endpoint_function(
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 190, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/home/ubuntu/report_backend/app.py", line 410, in get_combined_account_info
+    score_factors = compute_score_factors(enquiries_data, summary_data, active_account_count, credit_score)
+  File "/home/ubuntu/report_backend/app.py", line 308, in compute_score_factors
+    if queries_last_12_months > 2:
+TypeError: '>' not supported between instances of 'NoneType' and 'int'
+INFO:     49.36.121.68:51735 - "GET /financial_stability/16 HTTP/1.1" 200 OK
+INFO:     49.36.121.68:51734 - "GET /credit_standing/16 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/protocols/http/h11_impl.py", line 408, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/middleware/proxy_headers.py", line 84, in __call__
+    return await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/applications.py", line 289, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/applications.py", line 122, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 184, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 79, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 20, in __call__
+    raise e
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 66, in app
+    response = await func(request)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 273, in app
+    raw_response = await run_endpoint_function(
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 190, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/home/ubuntu/report_backend/app.py", line 410, in get_combined_account_info
+    score_factors = compute_score_factors(enquiries_data, summary_data, active_account_count, credit_score)
+  File "/home/ubuntu/report_backend/app.py", line 308, in compute_score_factors
+    if queries_last_12_months > 2:
+TypeError: '>' not supported between instances of 'NoneType' and 'int'
+INFO:     49.36.121.68:51803 - "GET /financial_stability/16 HTTP/1.1" 200 OK
+INFO:     49.36.121.68:51804 - "GET /credit_standing/16 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/protocols/http/h11_impl.py", line 408, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/middleware/proxy_headers.py", line 84, in __call__
+    return await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/applications.py", line 289, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/applications.py", line 122, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 184, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 79, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 20, in __call__
+    raise e
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 66, in app
+    response = await func(request)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 273, in app
+    raw_response = await run_endpoint_function(
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 190, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/home/ubuntu/report_backend/app.py", line 410, in get_combined_account_info
+    score_factors = compute_score_factors(enquiries_data, summary_data, active_account_count, credit_score)
+  File "/home/ubuntu/report_backend/app.py", line 308, in compute_score_factors
+    if queries_last_12_months > 2:
+TypeError: '>' not supported between instances of 'NoneType' and 'int'
+INFO:     49.36.121.68:51841 - "GET /financial_stability/16 HTTP/1.1" 200 OK
+INFO:     49.36.121.68:51840 - "GET /credit_standing/16 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/protocols/http/h11_impl.py", line 408, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/uvicorn/middleware/proxy_headers.py", line 84, in __call__
+    return await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/applications.py", line 289, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/applications.py", line 122, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 184, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 79, in __call__
+    raise exc
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/middleware/exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 20, in __call__
+    raise e
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/middleware/asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/starlette/routing.py", line 66, in app
+    response = await func(request)
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 273, in app
+    raw_response = await run_endpoint_function(
+  File "/home/ubuntu/trace_env/lib/python3.8/site-packages/fastapi/routing.py", line 190, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/home/ubuntu/report_backend/app.py", line 410, in get_combined_account_info
+    score_factors = compute_score_factors(enquiries_data, summary_data, active_account_count, credit_score)
+  File "/home/ubuntu/report_backend/app.py", line 308, in compute_score_factors
+    if queries_last_12_months > 2:
+TypeError: '>' not supported between instances of 'NoneType' and 'int'
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [241090]
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 116, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 125, in _main
+    prepare(preparation_data)
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 236, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 287, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+  File "/usr/lib/python3.8/runpy.py", line 265, in run_path
+    return _run_module_code(code, init_globals, run_name,
+  File "/usr/lib/python3.8/runpy.py", line 97, in _run_module_code
+    _run_code(code, mod_globals, init_globals,
+  File "/usr/lib/python3.8/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/ubuntu/report_backend/app.py", line 26, in <module>
+    CORSMiddleware,
+NameError: name 'CORSMiddleware' is not defined
+WARNING:  StatReload detected changes in 'models/Admin.py'. Reloading...
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 116, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 125, in _main
+    prepare(preparation_data)
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 236, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+  File "/usr/lib/python3.8/multiprocessing/spawn.py", line 287, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+  File "/usr/lib/python3.8/runpy.py", line 265, in run_path
+    return _run_module_code(code, init_globals, run_name,
+  File "/usr/lib/python3.8/runpy.py", line 97, in _run_module_code
+    _run_code(code, mod_globals, init_globals,
+  File "/usr/lib/python3.8/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/ubuntu/report_backend/app.py", line 26, in <module>
+    CORSMiddleware,
+NameError: name 'CORSMiddleware' is not defined
+INFO:     Stopping reloader process [241062]
