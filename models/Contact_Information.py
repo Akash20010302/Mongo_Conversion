@@ -49,7 +49,8 @@ class Address(SQLModel):
 class Index(SQLModel):
     consistency: int
     discrepancy: int
-    meter: str
+    meter: int
+    meter_text: str
     remarks: str
 
 class contact_info(SQLModel):

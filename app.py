@@ -1,22 +1,18 @@
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, FastAPI
 from sqlalchemy.sql import text
+from sqlmodel import SQLModel
 from async_sessions.sessions import get_db, get_db_backend
 from typing import List, Optional, Tuple, DefaultDict
 from fastapi.middleware.cors import CORSMiddleware
 from collections import defaultdict
 from datetime import datetime, timedelta
-import statistics
 from endpoints.summary_endpoints import summary_router
 from endpoints.identification_endpoints import identification_router
 from endpoints.contact_endpoints import contact_router
-
-class TwentySixAsDetails(BaseModel):
-    person_id: str
-    A1_section_1: str
-    A7_paid_credited_amount: str
-
+from endpoints.benchmark_endpoints import benchmark_router
+from endpoints.about_endpoints import about_router
+from models.About import HouseholdIncome, Info
 
 app = FastAPI()
 
@@ -31,560 +27,14 @@ app.add_middleware(
 app.include_router(summary_router)
 app.include_router(identification_router)
 app.include_router(contact_router)
+app.include_router(benchmark_router)
+app.include_router(about_router)
 
 
-## 1. about Pinaki
-class PersonalInfo(BaseModel):
-    id: int
-    Name: str
-    gender: str
-    marital_status: str
-    age: int
-    email: str
-    phone: str
-    city: Optional[str]
-
-class HouseholdIncome(BaseModel):
-    candidate_monthly_take: float
-    spouse_monthly_take: float
-    total_family_income: float
-
-class Info(BaseModel):
-    firstName: str
-    middleName: Optional[str]
-    lastName: str
-    phone: str
-    email: str
-    city: Optional[str]
-    gender: str
-    dob: str
-    age: int
-    marital_status: str
-    spouse_work_status: Optional[str]
-    spouse_employer: Optional[str]
-    kidsnum: int
-    adultdependents: int
-    home: bool
-    car: bool
-    twoWheeler: bool
-    creditCard: bool
-    Loan: bool
-    Investment: bool
-    education: str
-    education_institute: Optional[str]
-    location: Optional[str]
-    total_experience: float
-    work_industry: str
-    skillset: str
-    current_role: str
-    tenure_last_job: int
-    household_income: HouseholdIncome
-    
-def convert_to_datetime(year, month):
-    if year or month:
-        return datetime(int(year), int(month), 1)
-    return None    
-
-def convert_to_datetime_gap(date_str):
-    return datetime.strptime(date_str, "%m-%Y")
-
-@app.get("/about_user/{id}", response_model=Info, tags=['About'])
-async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2: AsyncSession = Depends(get_db)):
-    # Fetch data from the first database
-    result_1 = await db_1.execute(
-        text('SELECT "firstName", "middleName", "lastName", phone, email, dob, age, gender, marital_status, '
-        'education, experience, city, salary, home, "homeLoan", car, "carLoan", "twoWheeler", "twoWheelerLoan", '
-        '"creditCard", "personlLoan", stocks, "realEstate","spouseExperience", totalkids, '
-        'totaladults FROM "form" WHERE appid = :id'),# changed id to appid
-        {"id": id}
-    )
-
-    personal_info_1 = result_1.fetchone()
-
-    if personal_info_1 is None:
-        raise HTTPException(status_code=404, detail=f"Personal information not found for id {id}")
-
-    # Fetch data from the second database
-    #salary_result = await db_2.execute(
-    #    text('SELECT "A2(section_1)", "A7(paid_credited_amt)" FROM "26as_details" WHERE person_id = :person_id AND "A2(section_1)" LIKE "192%"'),
-    #    {"person_id": id}
-    #)
-    #salary_data = salary_result.fetchall()
-
-    #if not salary_data:
-    #    raise HTTPException(status_code=404, detail=f"No records found for person_id {id}")
-
-    #sum_of_values = sum(float(row[1]) for row in salary_data if row[1] is not None and row[1] != "")
-    #city = personal_info_1[24] if personal_info_1[24] is not None and personal_info_1[24] != "null" else "N/A"
-    salary_response = HouseholdIncome(
-        candidate_monthly_take=personal_info_1[12],
-        spouse_monthly_take=0,
-        total_family_income=personal_info_1[12]
-    )
-    query = text("""
-        SELECT company_name,
-            passbook_year,
-            passbook_month
-        FROM
-            get_passbook_details
-        GROUP BY
-            company_name, passbook_year, passbook_month
-    """
-    )
-    
-    result = await db_2.execute(query, {"person_id": id})
-    passbook_raw_data = result.fetchall()
-    
-    company_data = DefaultDict(list)
-    for exp in passbook_raw_data:
-        company_name = exp[0]
-        year = exp[1]
-        month = exp[2]
-
-        date = convert_to_datetime(year,month) 
-        if date:
-            company_data[company_name].append(date)
-        else:
-            company_data[company_name].append("N/A")
-            
-    result = []
-    durations = []
-    
-    for company_name, dates in company_data.items():
-        if dates!= ["N/A"]:
-            start_date = min(dates)
-            end_date = max(dates)
-            duration = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-            result.append({"company_name": company_name, "start_date": start_date.strftime("%m-%Y"), "end_date": end_date.strftime("%m-%Y"), "duration":duration})
-            
-            durations.append(duration)
-    total_duration = float(sum(durations)/12)
-    total_duration = round(total_duration, 2)
-
-    ##extracting role from tenure
-
-    result_role = await db_1.execute(
-        text('SELECT "role" '
-        'FROM "tenure" WHERE formid = :id'),# changed id to appid
-        {"id": id}
-    )
-    role = result_role.fetchone()
-
-
-    # Combine data from both databases into the Info response
-    return Info(
-        firstName=personal_info_1[0],
-        middleName=personal_info_1[1],
-        lastName=personal_info_1[2],
-        phone=personal_info_1[3],
-        email=personal_info_1[4],
-        city = personal_info_1[11] if personal_info_1[11] is not None else "N/A",
-        gender=personal_info_1[7],
-        dob=personal_info_1[5],
-        age=personal_info_1[6],
-        marital_status=personal_info_1[8],
-        spouse_work_status= "N/A",
-        spouse_employer="N/A",
-        kidsnum=personal_info_1[24] if personal_info_1[24] is not None else 0,
-        adultdependents=personal_info_1[25],
-        home=personal_info_1[13],
-        car=personal_info_1[15],
-        twoWheeler=personal_info_1[17],
-        creditCard=personal_info_1[19],
-        Loan=any([personal_info_1[14], personal_info_1[16], personal_info_1[18], personal_info_1[20]]),
-        Investment=any([personal_info_1[21], personal_info_1[22]]),
-        education=personal_info_1[9],
-        education_institute="N/A",
-        location=personal_info_1[11],
-        total_experience=total_duration,
-        work_industry= "N/A",
-        skillset="N/A",
-        current_role=role[0],
-        tenure_last_job=personal_info_1[10],
-        household_income= salary_response
-        )
- 
-
-## 2. benchmarking
-class CtcResponse(BaseModel):
-    offeredctc: str
-    currentctc: str
-    difference: Optional[float]
-    change_in_ctc: float
-    change_percent: float
-
-class NewResponse(BaseModel):
-    HouseholdTakeHome: float
-    OtherIncome: float
-    TotalTakeHome: float
-    EMI_CreditCard: float
-    EstimatedExpense: str
-    MostLikelyExpense: int
-    E_IRatio: float
-
-class PreviousResponse(BaseModel):
-    HouseholdTakeHome: float
-    OtherIncome: float
-    TotalTakeHome: float
-    EMI_CreditCard: float
-    EstimatedExpense: str
-    MostLikelyExpense: int
-    E_IRatio: float
-
-class ChangeResponse(BaseModel):
-    HouseholdTakeHome: float
-    OtherIncome: float
-    TotalTakeHome: float
-    EMI_CreditCard: float
-    EstimatedExpense: str
-    MostLikelyExpense: int
-    E_IRatio: float
-
-class ExpenseIncomeAnalysis(BaseModel):
-    prev: PreviousResponse
-    new_: NewResponse
-    change_: ChangeResponse
-    Risk: str
-    remarks: str
-
-class PayAnalysis(BaseModel):
-    previous_pay: tuple
-    current_offer: tuple
-    Risk: str
-    remarks: str
-
-
-class TenureAnalysis(BaseModel):
-    work_exp : list
-    overlapping_durations: list
-    gaps: list
-    avg_tenure: float
-    median_tenure: float
-    Risk: str
-    remarks: str
-
-
-class Response(BaseModel):
-    ctc_offered: CtcResponse
-    pay_analysis: PayAnalysis
-    Expense_income_analysis: ExpenseIncomeAnalysis
-    Tenure_analysis: TenureAnalysis
-
-def get_indicator(value: float) -> str:
-    """Determine the indicator for the given value."""
-    x =((value-1200000)/(2800000-1200000))*100
-    
-    if x < 20:
-        if x<=0:
-            return ("Very Low",0)
-        else:
-            return("Very Low",{x})
-    elif 20 <= x < 40:
-        return ("Low",{x})
-    elif 40 <= x < 60:
-        return ("Medium",{x})
-    elif 60 <= x < 80:
-        return ("High",{x})
-    elif 80 <= x:
-        if x <= 100:
-            return("Very High",{x})
-        else:
-            return("Very High",100)
-    else:
-        return ""
-    
-
-
-    
-def convert_to_datetime(year, month):
-    if year or month:
-        return datetime(int(year), int(month), 1)
-    return None    
-
-def convert_to_datetime_gap(date_str):
-    return datetime.strptime(date_str, "%m-%Y")
-
-
-
-@app.get("/benchmark/{id}", response_model=Response, tags=['Benchmarking'])
-async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), db_2: AsyncSession = Depends(get_db)):
-    ##appid to compid mapping:
-    xx = await db_1.execute(
-        text('SELECT compid '
-             'FROM applicationlist '
-             'WHERE id = :id'
-        ),
-        {"id": id}
-    )        
-    yy = xx.fetchone()
-    #print(yy)
-    ##Extracting currentctc, offeredctc from compcanlist
-    result = await db_1.execute(
-        text('SELECT currentctc, rolebudget, offeredctc '
-             'FROM compcanlist '
-             'WHERE "id" = :id'
-        ),
-        {"id": yy[0]}
-    )
-
-    ctc_info = result.fetchone()
-
-    if ctc_info is None:
-        raise HTTPException(status_code=404, detail=f"Personal information not found for id {id}")
-
-    currentctc = float(ctc_info[0])
-    offeredctc = float(ctc_info[2])
-
-    difference = offeredctc - currentctc
-    change_in_ctc = difference
-    change_percent = round((float(difference / currentctc) * 100),0) if currentctc != 0 else 0
-
-    currentctc_indicator = get_indicator(currentctc)
-    offeredctc_indicator = get_indicator(offeredctc)
-    risk_ = f"{offeredctc_indicator[0]} Cost to the Compamy"
-
-    ##extracting name 
-    first_name = await db_1.execute(
-        text('SELECT firstName '
-             'FROM form '
-             'WHERE appid = :id'
-        ),
-        {"id": id}
-    )        
-    firstname = first_name.fetchone()
-    name = firstname[0]
-
-    ##payanalysis
-    current_percentile =((currentctc-1200000)/(2800000-1200000))*100
-    offered_percentile =((offeredctc-1200000)/(2800000-1200000))*100
-
-    change_in_pay = (offeredctc - currentctc)/currentctc
-    if change_in_pay > 0.5:
-        pay_analysis_remark = "Major"
-    else:
-        pay_analysis_remark = "Minor" 
-    pay_analysis_final_remark = f"Based on {name}'s Education, location, Industry, role and experience, he will be moving from {current_percentile} percentile to {offered_percentile} percentile level. This will be considered as a {pay_analysis_remark} change in Pay."       
-##Expense/Income ratio:
-    query_1 = text("""
-        SELECT
-            SUM(case when "A2(section_1)" LIKE '194%' then CAST("A7(paid_credited_amt)" AS FLOAT) end) as total_other_income
-        FROM "26as_details"
-        WHERE person_id = :person_id
-    """)
-
-    result_1 = await db_2.execute(query_1, {"person_id": id})
-    summary_1 = result_1.fetchone()
-    total_other_income = summary_1[0] if summary_1[0] is not None else 0.0
-
-    query_2 = text("""
-    SELECT DISTINCT person_id, AccountNumber, AccountType, LastPayment, AccountStatus
-    FROM "RetailAccountDetails"
-    WHERE person_id = :person_id AND AccountStatus = "Current Account"
-    """)
-
-
-    result_2 = await db_2.execute(query_2, {"person_id": id})
-    summary_2 = result_2.fetchall()
-    if not summary_2:
-            raise HTTPException(status_code=404, detail=f"No records found for person_id {id}")
-
-    emi = sum(float(row[3]) for row in summary_2 if row[3] is not None and row[3] != "")
-
-    factor=0.3
-    new_exp = ((offeredctc)*0.4)+emi
-    new_increase =round(float(new_exp + (new_exp * factor)),0) 
-    new_decrease =round(float(new_exp - (new_exp * factor)),0)
-    new_income =(float(offeredctc)+float(total_other_income))
-    pre_exp = ((currentctc)*0.4)+emi
-    pre_income =(float(currentctc)+float(total_other_income))
-    ctc_change =(offeredctc - currentctc)
-    income_change = (new_income- pre_income)
-    exp_change = (new_exp - pre_exp)
-    new_ratio =round(float((new_exp/new_income)*100),0)
-    pre_ratio = round(float((pre_exp/pre_income)*100),0)
-    most_likely_income = round(float((pre_exp+new_exp)/2),0)
-
-    if new_ratio > pre_ratio:
-        ratio_change = new_ratio - pre_ratio
-    else:
-        ratio_change = pre_ratio - new_ratio
-
-# Determine risk
-    change_ratio = pre_ratio - new_ratio
-    if 25 < change_ratio:
-        risk = "Vey Low Financial Instability"
-    elif 3 < change_ratio <=25:
-        risk = "Low Financial Instability"
-    elif -3 <= change_ratio <= 3:
-        risk = "No change in Financial Instability"
-    elif 3< change_ratio <=15:
-        risk = "Vey Low Financial Instability"
-    else:
-        risk = "Vey Low Financial Instability"
-#Creating Remarks:
-    if ratio_change < 15:
-        expense_remark = "Minor"
-    else:
-        expense_remark = "Major"
-
-    if currentctc_indicator == offeredctc_indicator:
-        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% to {new_ratio}%. This will be considered as a {expense_remark} change in Family’s Financial position."        
-    else:
-        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% {currentctc_indicator} to {new_ratio}% {offeredctc_indicator}. This will be considered as a {expense_remark} change in Family’s Financial position."        
-
-
-
-
-    new_response = NewResponse(
-        HouseholdTakeHome=offeredctc,
-        OtherIncome=total_other_income,
-        TotalTakeHome=new_income,
-        EMI_CreditCard=emi,
-        EstimatedExpense=f"{new_decrease}-{new_increase}",
-        MostLikelyExpense=most_likely_income,
-        E_IRatio=new_ratio
-    )
-
-    pre_response = PreviousResponse(
-        HouseholdTakeHome=currentctc,
-        OtherIncome=total_other_income,
-        TotalTakeHome=pre_income,
-        EMI_CreditCard=emi,
-        EstimatedExpense=f"{new_decrease}-{new_increase}",
-        MostLikelyExpense=most_likely_income,
-        E_IRatio=pre_ratio
-    )
-
-    change_response = ChangeResponse(
-        HouseholdTakeHome=ctc_change,
-        OtherIncome=total_other_income,
-        TotalTakeHome=income_change,
-        EMI_CreditCard=0,
-        EstimatedExpense="0",
-        MostLikelyExpense=0,
-        E_IRatio=ratio_change
-    )
-
-    ctc = CtcResponse(
-        offeredctc=str(offeredctc),
-        currentctc=str(currentctc),
-        difference=difference,
-        change_in_ctc=change_in_ctc,
-        change_percent=change_percent
-    )
-
-    indicators = PayAnalysis(
-        previous_pay=currentctc_indicator,
-        current_offer=offeredctc_indicator,
-        Risk = risk_,
-        remarks=pay_analysis_final_remark
-    )
-
-    E_i = ExpenseIncomeAnalysis(
-        prev = pre_response,
-        new_ = new_response,
-        change_ = change_response,
-        Risk = risk,
-        remarks=expense_income_remark
-    )
-    query = text("""
-        SELECT company_name,
-            passbook_year,
-            passbook_month
-        FROM
-            get_passbook_details
-        GROUP BY
-            company_name, passbook_year, passbook_month
-    """
-    )
-    
-    result = await db_2.execute(query, {"person_id": id})
-    passbook_raw_data = result.fetchall()
-    
-    company_data = defaultdict(list)
-    for exp in passbook_raw_data:
-        company_name = exp[0]
-        year = exp[1]
-        month = exp[2]
-
-        date = convert_to_datetime(year,month) 
-        if date:
-            company_data[company_name].append(date)
-        else:
-            company_data[company_name].append("N/A")
-            
-    result = []
-    overlapping_durations=[]
-    gaps=[]
-    durations = []
-    
-    for company_name, dates in company_data.items():
-        if dates!= ["N/A"]:
-            start_date = min(dates)
-            end_date = max(dates)
-            duration = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-            result.append({"company_name": company_name, "start_date": start_date.strftime("%m-%Y"), "end_date": end_date.strftime("%m-%Y"), "duration":duration})
-            
-            durations.append(duration)
-        else:
-            result.append({"company_name": company_name, "start_date": "N/A","end_date": "N/A","duration":"N/A"})
-
-    median_duration = statistics.median(durations)
-    average_duration = statistics.mean(durations)
-    if median_duration < 24:
-        risk_duration = "High chance of Attrition"
-    elif 24 <= median_duration <= 60:
-        risk_duration = "Average chance of Attrition"
-    else:
-        risk_duration = "Low chance of Attrition"
-    if median_duration <24:
-        remark = "short"
-    elif 24<= median_duration<=60:
-        remark = "average"
-    else:
-        remark = "Long"                    
-    tenure_remarks = f"{name}’s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
-    #print(result)
-    #overlapping
-    
-    for i, entry1 in enumerate(result):
-        if entry1["end_date"]!="N/A":
-            end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
-
-            for entry2 in result[i+1:]:
-                if entry2["start_date"]!="N/A":
-                    start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
-
-                    if end_date1 > start_date2:
-                        overlapping_durations.append({
-                        "start_date": entry2["start_date"],
-                        "end_date": entry1["end_date"]
-                        })
-                        #gaps
-                    if end_date1 < start_date2:
-                        gap_start_date = (end_date1 + datetime.timedelta(days=1)).strftime("%m-%Y")
-                        gap_end_date = (start_date2 - datetime.timedelta(days=1)).strftime("%m-%Y")
-                        gaps.append({"start_date": gap_start_date, "end_date": gap_end_date})
-
-    tenure = TenureAnalysis(
-        work_exp = result,
-        overlapping_durations = overlapping_durations,
-        gaps = gaps,
-        avg_tenure= average_duration,
-        median_tenure= median_duration,
-        Risk= risk_duration,
-        remarks= tenure_remarks
-    )        
-
-
-    return Response(
-        ctc_offered=ctc,
-        pay_analysis=indicators,
-        Expense_income_analysis=E_i,
-        Tenure_analysis=tenure    
-    )    
-    
-
+class TwentySixAsDetails(SQLModel):
+    person_id: str
+    A1_section_1: str
+    A7_paid_credited_amount: str
 
 @app.get("/total_other_income/{person_id}")
 async def get_a7_for_person_id(person_id: str, db: AsyncSession = Depends(get_db)):
@@ -610,7 +60,7 @@ async def get_a7_for_person_id(person_id: str, db: AsyncSession = Depends(get_db
         return sum_of_values
 
 
-class RetailAccountDetails(BaseModel):
+class RetailAccountDetails(SQLModel):
     person_id: str
     AccountNumber: str
     AccountType: str
@@ -646,12 +96,12 @@ async def get_retail_account_details_for_person_id(person_id: str, db: AsyncSess
         
         return retail_account_response
 
-class A2_section_1(BaseModel):
+class A2_section_1(SQLModel):
     person_id: str
     A2: Optional[str]
 
 
-class A2Section1Count(BaseModel):
+class A2Section1Count(SQLModel):
     person_id: str
     Salary: int
     other_income: int
@@ -686,14 +136,14 @@ async def get_a2_for_person_id(person_id: str, db: AsyncSession = Depends(get_db
         return count_response
         
 # Define the response model
-class Enquiries(BaseModel):
+class Enquiries(SQLModel):
     queries_last_1_month: int
     queries_last_3_months: int
     queries_last_6_months: int
     queries_last_12_months: int
     queries_last_24_months: int
 
-class ResponseModel(BaseModel):
+class ResponseModel(SQLModel):
     active_accounts: List[str]
     enquiries: Enquiries
     active_account_count: int
@@ -753,7 +203,7 @@ async def get_active_account_credit_queries(person_id: str, db: AsyncSession = D
 
     return response
 
-class CreditResponse(BaseModel):
+class CreditResponse(SQLModel):
     person_id: str
     CreditLimit: Optional[str]
     Balance: Optional[str]
@@ -783,7 +233,7 @@ async def credit_standing(person_id: str, db: AsyncSession = Depends(get_db)):
         return response
 
 
-class AccountSummaryResponse(BaseModel):
+class AccountSummaryResponse(SQLModel):
     number_of_closed_accounts: int
     total_balance: float
     total_credit_limit: float
@@ -825,14 +275,14 @@ DatePhoneTuple = Tuple[str, str]  # (date, phone)
 DateAddressTuple = Tuple[str, str]  # (date, address)
 
 # Existing Models
-class Enquiries(BaseModel):
+class Enquiries(SQLModel):
     queries_last_1_month: int
     queries_last_3_months: int
     queries_last_6_months: int
     queries_last_12_months: int
     queries_last_24_months: int
     
-class CombinedResponseModel(BaseModel):
+class CombinedResponseModel(SQLModel):
     active_accounts: List[str]
     enquiries: Enquiries
     active_account_count: int
@@ -1001,7 +451,7 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
 
 
 
-class MonthlyIncome(BaseModel):
+class MonthlyIncome(SQLModel):
     month: str
     salary_amount: float
     other_income_amount: float
@@ -1010,12 +460,12 @@ class MonthlyIncome(BaseModel):
     personal_income_amount: float  # New field
     total_income_amount: float
 
-class IncomeSources(BaseModel):
+class IncomeSources(SQLModel):
     salary_sources: List[str]
     other_income_sources: List[str]
     overseas_income_sources: List[str]  # New field
 
-class IncomeSummaryResponse(BaseModel):
+class IncomeSummaryResponse(SQLModel):
     number_of_salary_accounts: int
     number_of_other_income_accounts: int
     number_of_personal_savings_account: int
@@ -1309,13 +759,14 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         income_percentage=income_percentage
     )
 
-class CareerDetailsResponse(BaseModel):
+class CareerDetailsResponse(SQLModel):
     all_experiences_govt_docs : list
     all_experiences_tenure: list
     good_to_know: int
     red_flag: int
     discrepancies: int
-    lack_of_trust: int
+    meter: int
+    meter_text: str
     
 def convert_to_datetime(year, month):
     if year or month:
@@ -1462,13 +913,27 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     all_exp_tenure = company_data + overlapping_durations_tenure + gaps_tenure
     all_experiences_sorted_tenure = sorted(all_exp_tenure, key=lambda x: x.get("start_date", "N/A"))
     
+    meter = min(5,(len(overlapping_durations)+len(overlapping_gaps)))
+    
+    if meter <= 1:
+        meter_text = "Very low"
+    elif meter == 2:
+        meter_text = "Low"
+    elif meter == 3:
+        meter_text = "Medium"
+    elif meter == 4:
+        meter_text = "High"
+    else:
+        meter_text = "Very high"
+    
     return CareerDetailsResponse(
         all_experiences_govt_docs = all_experiences_sorted_govt_docs,
         all_experiences_tenure = all_experiences_sorted_tenure,
         good_to_know = len(gaps),
         red_flag = len(overlapping_durations),
         discrepancies = len(overlapping_gaps),
-        lack_of_trust = min(5,(len(overlapping_durations)+len(overlapping_gaps)))
+        meter = meter,
+        meter_text = meter_text
     )
 
  

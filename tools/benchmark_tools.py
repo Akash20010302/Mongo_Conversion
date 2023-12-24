@@ -1,0 +1,33 @@
+from datetime import datetime
+
+
+async def get_indicator(value: float) -> str:
+    """Determine the indicator for the given value."""
+    x =((value-1200000)/(2800000-1200000))*100
+    
+    if x < 20:
+        if x<=0:
+            return ("Very Low",0)
+        else:
+            return("Very Low",{x})
+    elif 20 <= x < 40:
+        return ("Low",{x})
+    elif 40 <= x < 60:
+        return ("Medium",{x})
+    elif 60 <= x < 80:
+        return ("High",{x})
+    elif 80 <= x:
+        if x <= 100:
+            return("Very High",{x})
+        else:
+            return("Very High",100)
+    else:
+        return ""
+    
+async def convert_to_datetime(year, month):
+    if year or month:
+        return datetime(int(year), int(month), 1)
+    return None    
+
+async def convert_to_datetime_gap(date_str):
+    return datetime.strptime(date_str, "%m-%Y")
