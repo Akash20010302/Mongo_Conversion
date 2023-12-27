@@ -3,6 +3,7 @@ import datetime
 import statistics
 from fastapi import APIRouter, Depends, HTTPException
 from async_sessions.sessions import get_db, get_db_backend
+from starlette.status import HTTP_404_NOT_FOUND
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from tools.benchmark_tools import get_indicator, convert_to_datetime
@@ -34,7 +35,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     ctc_info = result.fetchone()
 
     if ctc_info is None:
-        raise HTTPException(status_code=404, detail=f"Personal information not found for id {id}")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Personal information not found for id : {id}")
 
     currentctc = float(ctc_info[0])
     offeredctc = float(ctc_info[2])
@@ -45,7 +46,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
 
     currentctc_indicator = await get_indicator(currentctc)
     offeredctc_indicator = await get_indicator(offeredctc)
-    risk_ = f"{offeredctc_indicator[0]} Cost to the Compamy"
+    risk_ = f"{offeredctc_indicator[0]} Cost to the Company"
 
     ##extracting name 
     first_name = await db_1.execute(
@@ -90,7 +91,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     result_2 = await db_2.execute(query_2, {"person_id": id})
     summary_2 = result_2.fetchall()
     if not summary_2:
-            raise HTTPException(status_code=404, detail=f"No records found for person_id {id}")
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"No records found for person_id : {id}")
 
     emi = sum(float(row[3]) for row in summary_2 if row[3] is not None and row[3] != "")
 
@@ -130,7 +131,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         expense_remark = "Minor"
     else:
         expense_remark = "Major"
-    print(f"----[DEBUG] PRE_RATIO: {pre_ratio} POST RATIO: {new_ratio}")
+    #print(f"----[DEBUG] PRE_RATIO: {pre_ratio} POST RATIO: {new_ratio}")
     if currentctc_indicator == offeredctc_indicator:
         expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% to {new_ratio}%. This will be considered as a {expense_remark} change in Family’s Financial position."        
     else:

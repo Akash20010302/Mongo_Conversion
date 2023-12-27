@@ -4,6 +4,7 @@ from async_sessions.sessions import get_db, get_db_backend
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from models.About import HouseholdIncome, Info
+from starlette.status import HTTP_404_NOT_FOUND
 from tools.benchmark_tools import convert_to_datetime
 
 
@@ -23,7 +24,7 @@ async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2
     personal_info_1 = result_1.fetchone()
 
     if personal_info_1 is None:
-        raise HTTPException(status_code=404, detail=f"Personal information not found for id {id}")
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Personal information not found for id : {id}")
 
     salary_response = HouseholdIncome(
         candidate_monthly_take=personal_info_1[12],
