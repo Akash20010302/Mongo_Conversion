@@ -3,10 +3,10 @@ import datetime
 import statistics
 from fastapi import APIRouter, Depends, HTTPException
 from async_sessions.sessions import get_db, get_db_backend
-from tools.benchmark_tools import get_indicator, convert_to_datetime
-from models.Benchmark import ChangeResponse, CtcResponse, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
+from tools.benchmark_tools import get_indicator, convert_to_datetime
+from models.Benchmark import ChangeResponse, CtcResponse, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
 
 benchmark_router = APIRouter()
 
@@ -130,11 +130,11 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         expense_remark = "Minor"
     else:
         expense_remark = "Major"
-
+    print(f"----[DEBUG] PRE_RATIO: {pre_ratio} POST RATIO: {new_ratio}")
     if currentctc_indicator == offeredctc_indicator:
         expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% to {new_ratio}%. This will be considered as a {expense_remark} change in Family’s Financial position."        
     else:
-        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% {currentctc_indicator} to {new_ratio}% {offeredctc_indicator}. This will be considered as a {expense_remark} change in Family’s Financial position."        
+        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% ({currentctc_indicator[0]}) to {new_ratio}% ({offeredctc_indicator[0]}). This will be considered as a {expense_remark} change in Family’s Financial position."        
 
 
 
@@ -227,7 +227,14 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
             start_date = min(dates)
             end_date = max(dates)
             duration = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-            result.append({"company_name": company_name, "start_date": start_date.strftime("%m-%Y"), "end_date": end_date.strftime("%m-%Y"), "duration":duration})
+            result.append(
+                {
+                    "company_name": company_name, 
+                    "start_date": start_date.strftime("%m-%Y"), 
+                    "end_date": end_date.strftime("%m-%Y"), 
+                    "duration":duration
+                    }
+                )
             
             durations.append(duration)
         else:
@@ -261,6 +268,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
 
                     if end_date1 > start_date2:
                         overlapping_durations.append({
+                        "company_name": entry2["company_name"],
                         "start_date": entry2["start_date"],
                         "end_date": entry1["end_date"]
                         })

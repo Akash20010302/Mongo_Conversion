@@ -86,6 +86,14 @@ async def iden_info(id:int):
         iden["consistency_meter"]= "High"
     else:
         iden["consistency_meter"]= "Very High"
+    if iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Verified":
+        iden["Remarks"] = "Both PAN and AADHAAR are Consistent."
+    elif iden["Aadhar_Status"] == "Concern" and iden["Pan_Status"] == "Concern":
+        iden["Remarks"] = "Both PAN and AADHAAR have discrepancies."
+    elif iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Concern":
+        iden["Remarks"] = "AADHAAR is Consistent while PAN has Discrepancies."
+    else:
+        iden["Remarks"] = "PAN is Consistent while AADHAAR has Discrepancies."
     if iden is not None:
         for file_key in ['aadharurl', 'panurl']:
             if file_key in iden and iden.get(file_key):

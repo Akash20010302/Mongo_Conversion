@@ -3,6 +3,7 @@ from loguru import logger
 from db.db import session
 from starlette.status import HTTP_400_BAD_REQUEST
 from auth.auth import AuthHandler
+from endpoints.career_endpoints import get_career_summary
 from endpoints.contact_endpoints import get_combined_info
 from endpoints.identification_endpoints import iden_info
 from models.Form import Form
@@ -43,7 +44,7 @@ async def summary(id:int):
     data["Lack_Of_Trust"] = {}
     data["Lack_Of_Trust"]["Discripency"] = data["Lack_Of_Trust"]["Red_Flag"] = 0
     data["External_Involvement"]["DIN"] = data["External_Involvement"]["External_Affiliations"] = 0
-    data["External_Involvement"]["Score"] = 0
+    data["External_Involvement"]["Score"] = 1
     data["Identification"]["Discripency"]=[]
     data["Identification"]["Consistency"]=[]
     data["Contact_Consistency"]["Discripency"]=[]
@@ -104,17 +105,21 @@ async def summary(id:int):
                 data["Contact_Consistency"]["Discripency"].append("Address")
             else:
                 data["Contact_Consistency"]["Consistency"].append("Address")
+            data["Contact_Consistency"]["Score"] = contact.index.meter
+        else:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Contact Info not found.")
+        career = await get_career_summary(person_id=id, db=analytics_session, db_backend=backend_session)
+        if career is not None:
+            data["Lack_Of_Trust"]["Discripency"]= career.discrepancies
+            data["Lack_Of_Trust"]["Red_Flag"] = career.red_flag
+            data["Lack_Of_Trust"]["Score"] = career.meter
+        else:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="Carrer Info not found.")
     except Exception as e:
-        pass
+        logger.debug(e)
     finally:
         await backend_session.close()
         await analytics_session.close()
-    data["Lack_Of_Trust"]["Discripency"] += len(data["Contact_Consistency"]["Discripency"]) + len(data["Identification"]["Discripency"])
-    if data["External_Involvement"]["External_Affiliations"] > 0:
-        data["Lack_Of_Trust"]["Red_Flag"] +=1
-    if data["Income_Non_Declaration"]["Business"] > 0:
-        data["Lack_Of_Trust"]["Red_Flag"] +=1
-    data["Lack_Of_Trust"]["Score"] = min(5,(data["Lack_Of_Trust"]["Discripency"]+data["Lack_Of_Trust"]["Red_Flag"]) if (data["Lack_Of_Trust"]["Discripency"]+data["Lack_Of_Trust"]["Red_Flag"]) > 0 else 1)
     if data["Lack_Of_Trust"]["Red_Flag"] > 0 and data["Lack_Of_Trust"]["Discripency"] > 0:
         data["Highlights"].append(f'''{form.firstName}’s career journey has {data["Lack_Of_Trust"]["Discripency"]} inconsistencies and {data["Lack_Of_Trust"]["Red_Flag"]} red flags. Red flags are critical and could be an indicator of moonlighting or second job.''')
     elif data["Lack_Of_Trust"]["Red_Flag"] > 0:

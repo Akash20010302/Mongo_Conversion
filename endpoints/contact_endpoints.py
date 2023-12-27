@@ -95,6 +95,11 @@ async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend
     consistency_email = 1 if email_response.provided == email_response.Pan == email_response.Aadhar == email_response.Government else 0
     consistency_address = 1 if address_response.provided == address_response.Pan ==address_response.Aadhar == address_response.Government else 0
 
+    # consistency_name = 1 if name_response.provided == name_response.Pan == name_response.Tax else 0
+    # consistency_phone = 1 if mobile_response.provided == mobile_response.Pan == mobile_response.Government else 0
+    # consistency_email = 1 if email_response.provided == email_response.Pan ==  email_response.Government else 0
+    # consistency_address = 1 if address_response.provided  ==address_response.Aadhar == address_response.Government else 0
+
     discrepancy_name = 1 - consistency_name
     discrepancy_phone = 1 - consistency_phone
     discrepancy_email = 1 - consistency_email
@@ -151,7 +156,7 @@ async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend
     index_response = Index(
         consistency=total_consistency,
         discrepancy=total_discrepancy,
-        meter = total_consistency, 
+        meter = total_consistency+1, 
         meter_text = meter,
         remarks=note
     )
