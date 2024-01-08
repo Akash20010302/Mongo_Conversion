@@ -15,8 +15,7 @@ class AuthHandler:
     secret = 'supersecret'
     candidate_revoked_tokens = set()
     admin_revoked_tokens = set()
-
-
+    
     async def decode_token(self, token):
         try:
             payload = jwt.decode(token, self.secret, algorithms=['HS256'])

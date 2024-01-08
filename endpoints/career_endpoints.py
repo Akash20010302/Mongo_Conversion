@@ -205,25 +205,65 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     all_exp_tenure = company_data + overlapping_durations_tenure + gaps_tenure
     all_experiences_sorted_tenure = sorted(all_exp_tenure, key=lambda x: x.get("start_date", "N/A"))
     
-    meter = min(5,(len(overlapping_durations) *2 +len(overlapping_gaps)))
     
-    if meter <= 1:
-        meter_text = "Very low"
-    elif meter == 2:
-        meter_text = "Low"
-    elif meter == 3:
-        meter_text = "Medium"
-    elif meter == 4:
-        meter_text = "High"
+    other_income_query = text("""
+                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" like "194%" AND person_id = :person_id
+                                 """)
+    
+    business_income_query = text("""
+                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "B2"="206CQ" AND person_id = :person_id
+                                 """)
+    
+    other_income = await db.execute(other_income_query,{"person_id":person_id})
+    business_income = await db.execute(business_income_query, {"person_id": person_id})
+    
+    no_of_other_sources = other_income.fetchall()
+    no_of_business_sources = business_income.fetchall()
+    
+    for i in no_of_other_sources:
+        other_count = i[0]
+    
+    for i in no_of_business_sources:
+        overseas_count = i[0]
+    
+    
+    red_flag = len(overlapping_durations) + other_count + overseas_count
+    discrepancies = len(overlapping_gaps)
+    good_to_know = len(gaps)
+    
+    meter = max(0,int(100 - discrepancies * 2 - red_flag * 10))
+    
+    if meter >= 95:
+        meter_text = "Excellent"
+    elif meter >= 90 and meter < 95:
+        meter_text = "Good"
+    elif meter >= 80 and meter < 90:
+        meter_text = "Concern"
     else:
-        meter_text = "Very high"
+        meter_text = "Bad"
+        
+    highlight = []
+    if good_to_know == 0:
+        highlight.append(f"No GAPs are identified that is not reflected in the resume")
+    else:
+        highlight.append(f"{good_to_know} GAPs are identified that is not reflected in the resume")
+        
+    if len(overlapping_durations) == 0:
+        highlight.append(f"No situation of dual employment found (Red Flag)")
+    else:
+        highlight.append(f"{len(overlapping_durations)} situation of dual employment found (Red Flag)")
+    if other_count + overseas_count == 0:
+        highlight.append(f"No situations of Business Income identified that could be related to moonlighting (Red Flag)" ) 
+    else:
+        highlight.append(f"{other_count + overseas_count} situations of Business Income identified that could be related to moonlighting (Red Flag)")
     
     return CareerDetailsResponse(
         all_experiences_govt_docs = all_experiences_sorted_govt_docs,
         all_experiences_tenure = all_experiences_sorted_tenure,
-        good_to_know = len(gaps),
-        red_flag = len(overlapping_durations),
-        discrepancies = len(overlapping_gaps),
+        good_to_know = good_to_know,
+        red_flag = red_flag,
+        discrepancies = discrepancies,
+        highlight = highlight,
         meter = meter,
         meter_text = meter_text
     )

@@ -47,11 +47,16 @@ class Address(SQLModel):
     remarks: str
 
 class Index(SQLModel):
+    contact_consistency: int
     consistency: int
     discrepancy: int
-    meter: int
-    meter_text: str
+    meter: str
     remarks: str
+    #contact_consistency: int
+    #discrepancy: int
+    #meter: int
+    #meter_text: str
+    #remarks: str
 
 class contact_info(SQLModel):
     name: Name

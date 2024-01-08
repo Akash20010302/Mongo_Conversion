@@ -6,7 +6,7 @@ from async_sessions.sessions import get_db, get_db_backend
 from starlette.status import HTTP_404_NOT_FOUND
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
-from tools.benchmark_tools import get_indicator, convert_to_datetime
+from tools.benchmark_tools import get_indicator, convert_to_datetime,get_ratio_indicator
 from models.Benchmark import ChangeResponse, CtcResponse, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
 
 benchmark_router = APIRouter()
@@ -43,6 +43,29 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     difference = offeredctc - currentctc
     change_in_ctc = difference
     change_percent = round((float(difference / currentctc) * 100),0) if currentctc != 0 else 0
+    
+    if change_percent < 5:
+        ctc_growth = [change_percent,"Low"]
+    elif 5<=change_percent<20:
+        ctc_growth = [change_percent,"Optimal"]
+    elif 20<= change_percent<40:
+        ctc_growth = [change_percent,"High"]
+    else:
+        ctc_growth = [change_percent,"Very High"]            
+    highlight = f"CTC change reflects {ctc_growth[1]} CTC growth"    
+        
+
+    offered_ctc_percentange = round(float((offeredctc/2800000)*100),0)
+    if offered_ctc_percentange < 50:
+        output = [offered_ctc_percentange,"LOW"]
+    elif 50<= offered_ctc_percentange<75:
+        output = [offered_ctc_percentange,"Optimal"]
+    elif 75<= offered_ctc_percentange<90:
+        output=[offered_ctc_percentange,"High"]
+    else:
+        output= [offered_ctc_percentange,"Very High"]
+        
+
 
     currentctc_indicator = await get_indicator(currentctc)
     offeredctc_indicator = await get_indicator(offeredctc)
@@ -62,12 +85,19 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     ##payanalysis
     current_percentile =((currentctc-1200000)/(2800000-1200000))*100
     offered_percentile =((offeredctc-1200000)/(2800000-1200000))*100
-
-    change_in_pay = (offeredctc - currentctc)/currentctc
-    if change_in_pay > 0.5:
-        pay_analysis_remark = "Major"
+## to do-0-20= minor
+#20-30= moderate
+#30-50= major
+#else- very high
+    change_in_pay = ((offeredctc - currentctc)/currentctc)*100
+    if change_in_pay <20:
+        pay_analysis_remark = "Minor"
+    elif 20<=change_in_pay<30:
+        pay_analysis_remark = "Moderate"
+    elif 30<= change_in_pay<50:
+        pay_analysis_remark = "Major"        
     else:
-        pay_analysis_remark = "Minor" 
+        pay_analysis_remark = "Very High" 
     pay_analysis_final_remark = f"Based on {name}'s Education, location, Industry, role and experience, he will be moving from {current_percentile} percentile to {offered_percentile} percentile level. This will be considered as a {pay_analysis_remark} change in Pay."       
 ##Expense/Income ratio:
     query_1 = text("""
@@ -107,7 +137,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     exp_change = (new_exp - pre_exp)
     new_ratio =round(float((new_exp/new_income)*100),0)
     pre_ratio = round(float((pre_exp/pre_income)*100),0)
-    most_likely_income = round(float((pre_exp+new_exp)/2),0)
+    most_likely_expense = round(float((pre_exp+new_exp)/2),0)
 
     if new_ratio > pre_ratio:
         ratio_change = new_ratio - pre_ratio
@@ -127,17 +157,84 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     else:
         risk = "Vey Low Financial Instability"
 #Creating Remarks:
-    if ratio_change < 15:
+#    if ratio_change < 15:
+#        expense_remark = "Minor"
+#    else:
+#        expense_remark = "Major"
+    pre_ratio_indicator = await get_ratio_indicator(pre_ratio)
+    new_ratio_indicator = await get_ratio_indicator(new_ratio)
+    
+    if pre_ratio_indicator[0]==new_ratio_indicator[0]:
         expense_remark = "Minor"
     else:
         expense_remark = "Major"
-    #print(f"----[DEBUG] PRE_RATIO: {pre_ratio} POST RATIO: {new_ratio}")
-    if currentctc_indicator == offeredctc_indicator:
-        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% to {new_ratio}%. This will be considered as a {expense_remark} change in Family’s Financial position."        
+
+    if pre_ratio_indicator[0] == new_ratio_indicator[0]:
+        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}%({pre_ratio_indicator[0]}) to {new_ratio}%({new_ratio_indicator[0]}). This will be considered as a {expense_remark} change in Family’s Financial position."        
     else:
-        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% ({currentctc_indicator[0]}) to {new_ratio}% ({offeredctc_indicator[0]}). This will be considered as a {expense_remark} change in Family’s Financial position."        
+        expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}%({pre_ratio_indicator[0]}) to {new_ratio}%({new_ratio_indicator[0]}). This will be considered as a {expense_remark} change in Family’s Financial position."        
+
+    #print(f"----[DEBUG] PRE_RATIO: {pre_ratio} POST RATIO: {new_ratio}")
+    #if currentctc_indicator == offeredctc_indicator:
+    #    expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% to {new_ratio}%. This will be considered as a {expense_remark} change in Family’s Financial position."        
+    #else:
+    #    expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}% ({currentctc_indicator[0]}) to {new_ratio}% ({offeredctc_indicator[0]}). This will be considered as a {expense_remark} change in Family’s Financial position."        
 
 
+
+
+#    new_response = NewResponse(
+#        HouseholdTakeHome=offeredctc,
+#        OtherIncome=total_other_income,
+#        TotalTakeHome=new_income,
+#        EMI_CreditCard=emi,
+#        EstimatedExpense=f"{new_decrease}-{new_increase}",
+#        MostLikelyExpense=most_likely_income,
+#        E_IRatio=new_ratio
+#    )
+#
+#    pre_response = PreviousResponse(
+#        HouseholdTakeHome=currentctc,
+#        OtherIncome=total_other_income,
+#        TotalTakeHome=pre_income,
+#        EMI_CreditCard=emi,
+#        EstimatedExpense=f"{new_decrease}-{new_increase}",
+#        MostLikelyExpense=most_likely_income,
+#        E_IRatio=pre_ratio
+#    )
+
+#    change_response = ChangeResponse(
+#       HouseholdTakeHome=ctc_change,
+#       OtherIncome=total_other_income,
+#       TotalTakeHome=income_change,
+#       EMI_CreditCard=0,
+#       EstimatedExpense="0",
+#       MostLikelyExpense=0,
+#       E_IRatio=ratio_change
+#    )
+
+#    ctc = CtcResponse(
+#       offeredctc=str(offeredctc),
+#       currentctc=str(currentctc),
+#       difference=difference,
+#       change_in_ctc=change_in_ctc,
+#       change_percent=change_percent
+#    )
+#
+#    indicators = PayAnalysis(
+#        previous_pay=currentctc_indicator,
+#        current_offer=offeredctc_indicator,
+#        Risk = risk_,
+#        remarks=pay_analysis_final_remark
+#    )
+#
+#    E_i = ExpenseIncomeAnalysis(
+#        prev = pre_response,
+#        new_ = new_response,
+#        change_ = change_response,
+#       Risk = risk,
+#        remarks=expense_income_remark
+#    )
 
 
     new_response = NewResponse(
@@ -146,7 +243,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         TotalTakeHome=new_income,
         EMI_CreditCard=emi,
         EstimatedExpense=f"{new_decrease}-{new_increase}",
-        MostLikelyExpense=most_likely_income,
+        MostLikelyExpense=most_likely_expense,
         E_IRatio=new_ratio
     )
 
@@ -156,7 +253,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         TotalTakeHome=pre_income,
         EMI_CreditCard=emi,
         EstimatedExpense=f"{new_decrease}-{new_increase}",
-        MostLikelyExpense=most_likely_income,
+        MostLikelyExpense=most_likely_expense,
         E_IRatio=pre_ratio
     )
 
@@ -171,27 +268,32 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     )
 
     ctc = CtcResponse(
+        ctc_benchmark_analysis= output,
         offeredctc=str(offeredctc),
-        currentctc=str(currentctc),
-        difference=difference,
+        past_ctc=str(currentctc),
         change_in_ctc=change_in_ctc,
-        change_percent=change_percent
+        ctc_growth= ctc_growth,
+        highlight=highlight
     )
 
     indicators = PayAnalysis(
         previous_pay=currentctc_indicator,
         current_offer=offeredctc_indicator,
-        Risk = risk_,
-        remarks=pay_analysis_final_remark
+        highlight_1= risk_,
+        highlight_2=pay_analysis_final_remark
     )
 
     E_i = ExpenseIncomeAnalysis(
+        expense_income_ratio= new_ratio_indicator,
+        total_household_income= int(new_income),
+        most_likely_expense= most_likely_expense,
+        highlights= expense_income_remark,
         prev = pre_response,
         new_ = new_response,
-        change_ = change_response,
-        Risk = risk,
-        remarks=expense_income_remark
+        change_ = change_response
     )
+
+
     query = text("""
         SELECT company_name,
             passbook_year,
@@ -241,17 +343,24 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         else:
             result.append({"company_name": company_name, "start_date": "N/A","end_date": "N/A","duration":"N/A"})
 
+    total_duration = float(sum(durations)/12)
+    total_duration = round(total_duration, 0)
+    total_jobs = len(result)
     median_duration = statistics.median(durations)
     average_duration = statistics.mean(durations)
-    if median_duration < 24:
-        risk_duration = "High chance of Attrition"
-    elif 24 <= median_duration <= 60:
-        risk_duration = "Average chance of Attrition"
+    if average_duration < 15:
+        risk_duration = "Very High"
+    elif 15 <= average_duration < 35:
+        risk_duration = "High"
+    elif 35 <= average_duration <60:
+        risk_duration = "Optimal"    
     else:
-        risk_duration = "Low chance of Attrition"
-    if median_duration <24:
+        risk_duration = "Low"
+        
+        
+    if average_duration <24:
         remark = "short"
-    elif 24<= median_duration<=60:
+    elif 24<= average_duration<=60:
         remark = "average"
     else:
         remark = "Long"                    
@@ -286,8 +395,11 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         avg_tenure= average_duration,
         median_tenure= median_duration,
         Risk= risk_duration,
-        remarks= tenure_remarks
+        remarks= tenure_remarks,
+        total_exp=total_duration,
+        num_of_jobs= total_jobs
     )        
+      
 
 
     return Response(

@@ -7,5 +7,6 @@ class CareerDetailsResponse(SQLModel):
     good_to_know: int
     red_flag: int
     discrepancies: int
+    highlight: list
     meter: int
     meter_text: str

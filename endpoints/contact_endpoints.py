@@ -40,7 +40,7 @@ async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend
         contact_info_1[3], contact_info_3[2], "N/A", contact_info_3[2], "Email")
 
     address_flag, pan_match_address, aadhar_match_address, government_match_address, address_remarks = await check_discrepancy_address(
-        contact_info_1[4] if contact_info_1[4] is not None else "N/A", contact_info_3[3], "N/A", contact_info_3[3], "Address")
+        contact_info_1[4] if contact_info_1[4] is not None else "N/A", f"{contact_info_3[3]},{contact_info_3[4]},{contact_info_3[5]},{contact_info_3[6]}", "N/A", f"{contact_info_3[3]},{contact_info_3[4]},{contact_info_3[5]},{contact_info_3[6]}", "Address")
 
     name_response = Name(
         provided=f"{contact_info_1[0]} {contact_info_1[1]}",
@@ -80,9 +80,9 @@ async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend
 
     address_response = Address(
         provided=contact_info_1[4] if contact_info_1[4] is not None else "N/A",
-        Pan=contact_info_3[3],
+        Pan=f"{contact_info_3[3]},{contact_info_3[4]},{contact_info_3[5]},{contact_info_3[6]}",
         Aadhar="N/A",
-        Government=contact_info_3[3],
+        Government=f"{contact_info_3[3]},{contact_info_3[4]},{contact_info_3[5]},{contact_info_3[6]}",
         flag=address_flag,
         pan_match=pan_match_address,
         aadhar_match=aadhar_match_address,
@@ -139,25 +139,96 @@ async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend
     
         
     # Calculate total consistency and discrepancy counts
-    total_consistency = consistency_name + consistency_phone + consistency_email + consistency_address
-    total_discrepancy = discrepancy_name + discrepancy_phone + discrepancy_email + discrepancy_address
+    #total_consistency = consistency_name + consistency_phone + consistency_email + consistency_address
+    #total_discrepancy = discrepancy_name + discrepancy_phone + discrepancy_email + discrepancy_address
 
-    if total_consistency == 0:
-        meter= "Very Low"
-    elif total_consistency == 1:
-        meter= "Low"
-    elif total_consistency == 2:
-        meter= "Medium"      
-    elif total_consistency == 3:
-        meter= "High"
+    #if total_consistency == 0:
+    #    meter= "Very Low"
+    #elif total_consistency == 1:
+    #    meter= "Low"
+    #elif total_consistency == 2:
+    #    meter= "Medium"      
+    #elif total_consistency == 3:
+    #    meter= "High"
+    #else:
+    #    meter= "Very High"
+     # Calculate total consistency and discrepancy counts
+    total_consistency = 4
+    total_discrepancy = 0
+    if name_response.pan_match == True:
+        total_consistency+=1
     else:
-        meter= "Very High"
+        total_discrepancy+=1    
+    if name_response.aadhar_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1
+    if name_response.tax_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1
+    
+    if mobile_response.pan_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1    
+    if mobile_response.aadhar_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1
+    if mobile_response.government_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1
 
+    if email_response.pan_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1    
+    if email_response.aadhar_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1
+    if email_response.government_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1
+
+    if address_response.pan_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1    
+    if address_response.aadhar_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1
+    if address_response.government_match == True:
+        total_consistency+=1
+    else:
+        total_discrepancy+=1    
+    contact_consistency= round(float((total_consistency/16)*100),0)
+    if contact_consistency < 75:
+        meter= "Bad"
+    elif 75<=contact_consistency < 85:
+        meter= "Concern"
+    elif 85<=contact_consistency <95:
+        meter= "Good"      
+    else:
+        meter= "Excellent"
+
+    
+    #index_response = Index(
+    #    contact_consistency=contact_consistency,
+    #    discrepancy=total_discrepancy,
+    #    meter = total_consistency+1, 
+    #    meter_text = meter,
+    #    remarks=note
+    #)
     index_response = Index(
+        contact_consistency=contact_consistency,
         consistency=total_consistency,
         discrepancy=total_discrepancy,
-        meter = total_consistency+1, 
-        meter_text = meter,
+        meter=meter,
         remarks=note
     )
     

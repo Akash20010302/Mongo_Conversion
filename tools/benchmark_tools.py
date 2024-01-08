@@ -31,3 +31,22 @@ async def convert_to_datetime(year, month):
 
 async def convert_to_datetime_gap(date_str):
     return datetime.strptime(date_str, "%m-%Y")
+
+async def get_ratio_indicator(x: float) -> str:
+    """Determine the indicator for the given value."""
+        
+    if x < 50:
+        return("Excellent",{x})
+    elif 50 <= x < 60:
+        return ("Good",{x})
+    elif 60 <= x < 80:
+        return ("Concern",{x})
+    elif 80<= x:
+        return("Bad",{x})
+    else:
+        return ""
+
+
+
+
+

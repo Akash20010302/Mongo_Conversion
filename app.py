@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, FastAPI
 from sqlalchemy.sql import text
 from sqlmodel import SQLModel
-from async_sessions.sessions import get_db, get_db_backend
+from async_sessions.sessions import get_db
 from typing import List, Optional, Tuple
 from fastapi.middleware.cors import CORSMiddleware
 from collections import defaultdict
@@ -13,6 +13,8 @@ from endpoints.contact_endpoints import contact_router
 from endpoints.benchmark_endpoints import benchmark_router
 from endpoints.about_endpoints import about_router
 from endpoints.career_endpoints import career_router
+from endpoints.share_endpoints import share_router
+from endpoints.newhire_endpoints import new_hire_router
 
 app = FastAPI()
 
@@ -30,6 +32,9 @@ app.include_router(contact_router)
 app.include_router(benchmark_router)
 app.include_router(about_router)
 app.include_router(career_router)
+app.include_router(share_router)
+app.include_router(new_hire_router)
+
 
 class TwentySixAsDetails(SQLModel):
     person_id: str
@@ -281,7 +286,14 @@ class Enquiries(SQLModel):
     queries_last_6_months: int
     queries_last_12_months: int
     queries_last_24_months: int
-    
+
+class tradeline(SQLModel):
+    count: int
+    balance: int
+    high_credit: int
+    credit_limit: int
+    past_due: int
+
 class CombinedResponseModel(SQLModel):
     active_accounts: List[str]
     enquiries: Enquiries
@@ -291,6 +303,10 @@ class CombinedResponseModel(SQLModel):
     total_credit_limit: float
     total_past_due: float
     credit_score: int
+    tradeline_summary_installment: tradeline
+    tradeline_summary_open: tradeline
+    tradeline_summary_close: tradeline
+    tradeline_summary_total: tradeline
     phone_numbers: List[DatePhoneTuple]
     addresses: List[DateAddressTuple]
     email_addresses: List[DateEmailTuple]
@@ -306,11 +322,15 @@ def compute_score_factors(enquiries_data, summary_data, active_account_count, cr
     # Rule 1: Insufficient payment activity over the last year
     if active_account_count < 3:  
         score_factors.append("Insufficient payment activity over the last year")
-
+    else:
+        score_factors.append("Sufficient payment activity over the last year")
+        
     # Rule 2: Not enough available credit
     if total_credit_limit < 10000000:  
         score_factors.append("Not enough available credit")
-
+    else:
+        score_factors.append("Enough available credit")
+        
     # Assuming the order of enquiries_data is as follows:
     # 0: queries_last_1_month, 1: queries_last_3_months, 2: queries_last_6_months, 3: queries_last_12_months, 4: queries_last_24_months
     queries_last_12_months = enquiries_data[3] if enquiries_data[3] else 0
@@ -318,12 +338,16 @@ def compute_score_factors(enquiries_data, summary_data, active_account_count, cr
     # Rule 3: Too many inquiries
     if queries_last_12_months > 2: 
         score_factors.append("Too many inquiries")
-
+    else:
+        score_factors.append("Limited inquiries")
+        
     # Rule 4: Not enough balance decreases on active non-mortgage accounts
     print(f"CREDIT: {credit_score}")
     if credit_score < 600:  
         score_factors.append("Not enough balance decreases on active non-mortgage accounts")
-
+    else:
+        score_factors.append("Enough balance decreases on active non-mortgage accounts")
+        
     return score_factors
 
     
@@ -383,19 +407,38 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
         FROM addressInfo
         WHERE person_id = :person_id
     ''')
+    
+    tradeline_summary_installment_query = text('''
+                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE AccountType !="Credit Card" AND open = "Yes" AND date(LastPaymentDate) >= date("now","-12 months")
+                                   AND person_id = :person_id
+                                   ''')
+    tradeline_summary_open_query = text('''
+                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE open = "Yes" AND date(LastPaymentDate) >= date("now","-12 months")
+                                   AND person_id = :person_id
+                                   ''')
+    tradeline_summary_close_query = text('''
+                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE open = "No" AND date(LastPaymentDate) >= date("now","-12 months")
+                                   AND person_id = :person_id
+                                   ''')
 
     # Execute queries
     result_accounts = await db.execute(query_accounts, {"person_id": person_id, "balance": 99})
     result_summary = await db.execute(query_summary, {"person_id": person_id})
     result_enquiries = await db.execute(query_enquiries, {"person_id": person_id})
     result_credit_score = await db.execute(query_credit_score, {"person_id": person_id})
-
+    result_installment = await db.execute(tradeline_summary_installment_query, {"person_id": person_id})
+    result_open = await db.execute(tradeline_summary_open_query, {"person_id": person_id})
+    result_close = await db.execute(tradeline_summary_close_query, {"person_id": person_id})
+    
     # Fetch results
     active_accounts_data = result_accounts.fetchall()
     summary_data = result_summary.fetchone()
     enquiries_data = result_enquiries.fetchone()
     credit_score = result_credit_score.fetchone()
-
+    installment_data = result_installment.fetchone()
+    open_data = result_open.fetchone()
+    close_data = result_close.fetchone()
+    
     # Extract information
     active_accounts = [row[0] for row in active_accounts_data]
     active_account_count = len(active_accounts)
@@ -420,7 +463,6 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
 
     score_factors = compute_score_factors(enquiries_data, summary_data, active_account_count, credit_score)
     
-    
     # Build the response
     response = CombinedResponseModel(
         active_accounts=active_accounts,
@@ -437,6 +479,34 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
         total_credit_limit=float(summary_data[2]) if summary_data[2] is not None else 0.0,
         total_past_due=float(summary_data[3]) if summary_data[3] is not None else 0.0,
         credit_score=credit_score if credit_score else 0.0,
+        tradeline_summary_installment=tradeline(
+            count=installment_data[0] if installment_data[0] else 0,
+            balance=installment_data[1] if installment_data[1] else 0,
+            past_due=installment_data[2] if installment_data[2] else 0,
+            high_credit=installment_data[3] if installment_data[3] else 0,
+            credit_limit=installment_data[4] if installment_data[4] else 0
+        ),
+        tradeline_summary_open=tradeline(
+            count=open_data[0] if open_data[0] else 0,
+            balance=open_data[1] if open_data[1] else 0,
+            past_due=open_data[2] if open_data[2] else 0,
+            high_credit=open_data[3] if open_data[3] else 0,
+            credit_limit=open_data[4] if open_data[4] else 0
+        ),
+        tradeline_summary_close=tradeline(
+            count=close_data[0] if close_data[0] else 0,
+            balance=close_data[1] if close_data[1] else 0,
+            past_due=close_data[2] if close_data[2] else 0,
+            high_credit=close_data[3] if close_data[3] else 0,
+            credit_limit=close_data[4] if close_data[4] else 0
+        ),
+        tradeline_summary_total=tradeline(
+            count=close_data[0] if close_data[0] else 0 + open_data[0] if open_data[0] else 0,
+            balance=close_data[1] if close_data[1] else 0 + open_data[1] if open_data[1] else 0,
+            past_due=close_data[2] if close_data[2] else 0 + open_data[2] if open_data[2] else 0,
+            high_credit=close_data[3] if close_data[3] else 0 + open_data[3] if open_data[3] else 0,
+            credit_limit=close_data[4] if close_data[4] else 0 + open_data[4] if open_data[4] else 0
+        ),
         phone_numbers=phone_data,
         email_addresses=email_data,
         addresses=address_data,
@@ -535,8 +605,8 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     monthly_income_query = text("""
         SELECT 
             strftime('%Y-%m', formatted_date) as month_year,
-            SUM(CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as salary_amount,
-            SUM(CASE WHEN "A2(section_1)" LIKE '194%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as other_income_amount
+            (CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as salary_amount,
+            (CASE WHEN "A2(section_1)" LIKE '194%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as other_income_amount
         FROM (
             SELECT 
                 CASE
@@ -573,7 +643,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     for element in detA_raw_data:
         detA[element[0]]=element[1]
     
-    print(detA)
+    #print(detA)
     
     overseas_income_query = text("""
     SELECT 
@@ -616,7 +686,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     overseas_income_result = await db.execute(overseas_income_query, {"person_id": person_id, "source": "206CQ"})
     overseas_income_raw_data = overseas_income_result.fetchall()
 
-    print(f"-----[DEBUG] Overseas income source: {list(overseas_income_raw_data)}")
+    #print(f"-----[DEBUG] Overseas income source: {list(overseas_income_raw_data)}")
     
     # Process overseas income data
     overseas_income_sources = []
