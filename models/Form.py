@@ -1,6 +1,6 @@
 import datetime
 from typing import Optional
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel, Index
 from models.Application import ApplicationList
 import warnings
 
@@ -13,8 +13,8 @@ class Form(SQLModel, table=True):
     firstName: str
     middleName: Optional[str]
     lastName: str
-    phone: Optional[str] = Field(foreign_key='candidateuser.phone')
-    email: Optional[str] = Field(foreign_key='candidateuser.email')
+    phone: Optional[str]
+    email: Optional[str]
     dob: Optional[str]
     age: Optional[int]
     gender: Optional[str]
@@ -67,10 +67,4 @@ class Form(SQLModel, table=True):
     report: Optional[datetime.datetime]
     
     class Config:
-        from_attributes = True
-
-class GetForm(SQLModel):
-    id: int
-    
-    class Config:
-        from_attributes = True
+        indexes = [Index("idx_form_appid", "appid"), Index("idx_form_id", "id")]

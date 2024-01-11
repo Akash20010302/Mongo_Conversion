@@ -1,5 +1,5 @@
 import datetime
-from sqlmodel import Relationship, SQLModel, Field
+from sqlmodel import Relationship, SQLModel, Field, Index
 from typing import Optional
 from models.CompCandidateList import CompCanList
 import warnings
@@ -20,6 +20,7 @@ class ApplicationList(SQLModel, table=True):
     updatedby: Optional[int]
     isDeleted: Optional[bool] = False
     DeletedBy: Optional[int]
+    report: Optional[datetime.datetime]
     
     class Config:
-        from_attributes = True
+        indexes = [Index("idx_applicationlist_comcanid", "compid"),Index("idx_applicationlist_id", "id")]

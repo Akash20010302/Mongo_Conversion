@@ -1,6 +1,6 @@
 import datetime
-from pydantic import validator, EmailStr
-from sqlmodel import SQLModel, Field, Relationship
+from pydantic import validator
+from sqlmodel import SQLModel, Field, Relationship, Index
 from typing import Optional
 from models.Candidate import CandidateUser
 from models.Company import CompanyList
@@ -41,4 +41,4 @@ class CompCanList(SQLModel, table=True):
         return v
     
     class Config:
-        from_attributes = True
+        indexes = [Index("idx_comcanlist_companyid", "companyid"), Index("idx_comcanlist_CanId", "CanId"), Index("idx_comcanlist_id", "id")]

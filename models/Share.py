@@ -1,6 +1,6 @@
 import datetime
 from pydantic import EmailStr
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, Index
 from typing import List, Optional
 from models.Application import ApplicationList
 from models.Form import Form
@@ -22,11 +22,11 @@ class Share(SQLModel, table=True):
     isDeleted: Optional[bool] = False
     DeletedBy: Optional[int]
     lastlogin: Optional[datetime.datetime]
-    shared_url:Optional[str]
+    shared_url: Optional[str]
     email_status: Optional[bool] = False
     
     class Config:
-        from_attributes = True
+        indexes = [Index("idx_Share_appid", "appid"),Index("idx_Share_formid", "formid"),Index("idx_Share_id", "id")]
         
 class ShareEmail(SQLModel):
     email: List[EmailStr]

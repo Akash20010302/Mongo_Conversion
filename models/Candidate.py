@@ -1,6 +1,6 @@
 import datetime
 from pydantic import validator
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Index
 from typing import Optional
 import warnings
 
@@ -11,8 +11,8 @@ class CandidateUser(SQLModel, table=True):
     firstName: str
     lastName: str
     role: str = 'Candidate'
-    email: str
-    phone: str = Field(min_length=10, max_length=10)
+    email: str = Field(index=True)
+    phone: str = Field(min_length=10, max_length=10,index=True)
     password: Optional[str]
     createddate: Optional[datetime.datetime] = datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30)
     createdby: Optional[int]
@@ -31,4 +31,4 @@ class CandidateUser(SQLModel, table=True):
         return v
     
     class Config:
-        from_attributes = True
+        indexes = [Index("idx_candidateuser_email", "email"), Index("idx_candidateuser_phone", "phone"), Index("idx_candidateuser_id", "id")]

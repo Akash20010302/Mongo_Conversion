@@ -1,5 +1,5 @@
 import datetime
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Index
 from typing import Optional
 import warnings
 
@@ -26,4 +26,4 @@ class CompanyList(SQLModel, table=True):
     DeletedBy: Optional[int]
     
     class Config:
-        from_attributes = True
+        indexes = [Index("idx_companylist_id", "id")]

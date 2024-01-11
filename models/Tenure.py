@@ -1,5 +1,5 @@
 import datetime
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Index
 from typing import Optional
 import warnings
 
@@ -21,4 +21,4 @@ class Tenure(SQLModel, table=True):
     createdon: Optional[datetime.datetime] = datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30)
     
     class Config:
-        from_attributes = True
+        indexes = [Index("idx_Tenure_formid", "formid"),Index("idx_Tenure_id", "id")]

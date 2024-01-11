@@ -1,6 +1,6 @@
 import datetime
 from pydantic import validator
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, Index
 from typing import Optional
 from models.Company import CompanyList
 import warnings
@@ -11,11 +11,11 @@ class AdminUser(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)
     firstName: str
     lastName: str
-    role: Optional[str]
-    email: str
+    role: Optional[str] = Field(index=True)
+    email: str = Field(index=True)
     phone: str = Field(min_length=10, max_length=10)
     company: Optional[CompanyList] = Relationship()
-    companyid: int = Field(foreign_key='companylist.id')
+    companyid: int = Field(foreign_key='companylist.id',index=True)
     password: str
     status: str = "Invited"
     createddate: Optional[datetime.datetime] = (datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30))
@@ -35,4 +35,4 @@ class AdminUser(SQLModel, table=True):
         return v
     
     class Config:
-        from_attributes = True
+        indexes = [Index("idx_adminuser_role", "role"), Index("idx_adminuser_companyid", "companyid"),Index("idx_adminuser_id", "id")]
