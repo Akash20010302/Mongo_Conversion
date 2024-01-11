@@ -1,6 +1,9 @@
 from typing import Optional
 from pydantic import EmailStr
 from sqlmodel import SQLModel
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 
 class HouseholdIncome(SQLModel):

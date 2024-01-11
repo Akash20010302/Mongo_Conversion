@@ -1,9 +1,10 @@
 import datetime
-from pydantic import EmailStr, BaseModel
 from sqlmodel import Relationship, SQLModel, Field
 from typing import Optional
-
 from models.CompCandidateList import CompCanList
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class ApplicationList(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)

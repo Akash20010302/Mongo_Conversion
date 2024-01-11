@@ -3,8 +3,10 @@ from pydantic import validator, EmailStr
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional
 from models.Candidate import CandidateUser
-
 from models.Company import CompanyList
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class CompCanList(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)

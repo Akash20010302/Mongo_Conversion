@@ -634,8 +634,28 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         SELECT 
             strftime('%Y-%m', formatted_date) as month_year,
             (CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as salary_amount,
-            (CASE WHEN "A2(section_1)"  = "194DA" OR "A2(section_1)" = "194I(a)" OR "A2(section_1)" = "194I(b)" OR "A2(section_1)" = "194I" OR "A2(section_1)" = "194LA" OR "A2(section_1)" = "194S" OR "A2(section_1)" = "194M" OR "A2(section_1)" = "194N" OR "A2(section_1)" = "194P" OR "A2(section_1)" = "194Q" OR "A2(section_1)" = "196DA" OR "A2(section_1)" = "206CA" OR "A2(section_1)" = "206CB" OR "A2(section_1)" = "206CC" OR "A2(section_1)" = "206CD" OR "A2(section_1)" = "206CE" OR "A2(section_1)" = "206CF" OR "A2(section_1)" = "206CG" OR "A2(section_1)" = "206CH" OR "A2(section_1)" = "206CI" OR "A2(section_1)" = "206CJ" OR "A2(section_1)" = "206CK" OR "A2(section_1)" = "206CL" OR "A2(section_1)" = "206CM" OR "A2(section_1)" = "206CP" OR "A2(section_1)" = "206CR" THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as other_income_amount
-        FROM (
+            (SUM(CASE 
+                WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
+                THEN 
+                    CASE 
+                        WHEN "A2(section_1)" IN ('206CA', '206CE', '206CJ', '206CL', '206CN') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        WHEN "A2(section_1)" IN ('206CK', '206CM') AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01 > 200000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        WHEN "A2(section_1)" IN ('206CB', '206CC','206CD') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.025
+                        WHEN "A2(section_1)" IN ('206CF', '206CG','206CH') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.02
+                        WHEN "A2(section_1)" = '206CI' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.05
+                        WHEN "A2(section_1)" = '206CR' AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001 > 5000000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001
+                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+                    END
+            END))as other_income_amount,
+            (SUM(CASE 
+                WHEN "A2(section_1)" IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O')
+                THEN
+                    CASE
+                        WHEN "A2(section_1)" = '206CN' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+                    END
+            END)) as business_income_amount
+				FROM (
             SELECT 
                 CASE
                     WHEN substr("A3(transaction_dt)", 4, 3) = 'Jan' THEN substr("A3(transaction_dt)", 8, 4) || '-01-' || substr("A3(transaction_dt)", 1, 2)
@@ -654,7 +674,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
                 "A2(section_1)",
                 "A7(paid_credited_amt)"
             FROM "26as_details"
-            WHERE person_id = :person_id 
+            WHERE person_id = :person_id
             AND strftime('%Y-%m-%d', formatted_date) >= strftime('%Y-%m-%d', 'now', '-12 months')
         ) 
         GROUP BY strftime('%Y-%m', formatted_date)
@@ -754,9 +774,9 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     MonthlyIncome(
         month=row[0],
         salary_amount=row[1],
-        other_income_amount=0.0,
+        other_income_amount=float(row[2]) if row[2] is not None else 0.0,
         overseas_income_amount=0.0,
-        business_income_amount=row[2],
+        business_income_amount=float(row[3]) if row[3] is not None else 0.0,
         personal_income_amount=0.0,
         total_income_amount=0.0
         
@@ -764,7 +784,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     )
     for row in monthly_income_raw_data if row[0]
     ]
-    print(monthly_income_details)
+    #print(monthly_income_details)
     #Added for overseas
     total_overseas_income = 0.0
     for income_detail in monthly_income_details:
@@ -848,7 +868,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         "personal_income_percentage": 0.0
     }
 
-    income_score_percentage=max(0,100- 2*(len(other_income_sources))-10*(len(overseas_income_sources)))
+    income_score_percentage=max(0,100- 2*(other_income_accounts))-10*(len(overseas_income_sources)+business_income_accounts)
     if income_score_percentage >= 95:
         income_score_text="Excellent"
     elif income_score_percentage >= 90  and income_score_percentage < 95:

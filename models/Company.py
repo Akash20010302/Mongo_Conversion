@@ -1,6 +1,9 @@
 import datetime
 from sqlmodel import SQLModel, Field
 from typing import Optional
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class CompanyList(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)

@@ -1,4 +1,7 @@
 from sqlmodel import Field, SQLModel
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class Get_Kyc_Details(SQLModel, table=True):
     person_id : str = Field(primary_key=True)

@@ -4,6 +4,9 @@ from sqlmodel import SQLModel, Field, Relationship
 from typing import List, Optional
 from models.Application import ApplicationList
 from models.Form import Form
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class Share(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)

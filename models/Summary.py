@@ -3,6 +3,9 @@ from typing import Optional
 from pydantic import EmailStr
 from sqlmodel import SQLModel
 from async_sessions.sessions import get_db, get_db_backend
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class SummaryBasicInfo(SQLModel):
     firstName: str = 'N/A'

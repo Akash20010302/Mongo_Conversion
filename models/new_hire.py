@@ -1,4 +1,7 @@
 from sqlmodel import SQLModel
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class CtcRange(SQLModel):
     lower: int

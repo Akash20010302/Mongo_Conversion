@@ -1,6 +1,8 @@
 from typing import Optional
 from sqlmodel import SQLModel
+import warnings
 
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class Name(SQLModel):
     provided: str

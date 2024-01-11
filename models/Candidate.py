@@ -2,6 +2,9 @@ import datetime
 from pydantic import validator
 from sqlmodel import SQLModel, Field
 from typing import Optional
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
     
 class CandidateUser(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)

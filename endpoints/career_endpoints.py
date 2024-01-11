@@ -211,27 +211,27 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     all_experiences_sorted_tenure = sorted(all_exp_tenure, key=lambda x: x.get("start_date", "N/A"))
     
     
-    other_income_query = text("""
-                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" like "194%" AND person_id = :person_id
-                                 """)
+    # other_income_query = text("""
+    #                              SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" like "194%" AND person_id = :person_id
+    #                              """)
     
     business_income_query = text("""
-                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "B2"="206CQ" AND person_id = :person_id
+                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" IN('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') AND person_id = :person_id;
                                  """)
     
-    other_income = await db.execute(other_income_query,{"person_id":person_id})
+    #other_income = await db.execute(other_income_query,{"person_id":person_id})
     business_income = await db.execute(business_income_query, {"person_id": person_id})
     
-    no_of_other_sources = other_income.fetchall()
+    #no_of_other_sources = other_income.fetchall()
     no_of_business_sources = business_income.fetchall()
     
-    for i in no_of_other_sources:
-        other_count = i[0]
+    # for i in no_of_other_sources:
+    #     other_count = i[0]
     
     for i in no_of_business_sources:
-        overseas_count = i[0]
+        business_count = i[0]
     
-    red_flag = len(overlapping_durations) + other_count + overseas_count
+    red_flag = len(overlapping_durations) + business_count
     discrepancies = len(overlapping_gaps)
     good_to_know = len(gaps)
     

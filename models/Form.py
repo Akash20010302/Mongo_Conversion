@@ -1,8 +1,10 @@
 import datetime
 from typing import Optional
 from sqlmodel import Field, Relationship, SQLModel
-
 from models.Application import ApplicationList
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
 class Form(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)
