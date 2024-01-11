@@ -1,11 +1,15 @@
 from sqlmodel import SQLModel
 
-
+class CtcRange(SQLModel):
+    lower: int
+    upper: int
+    
+    
 class Info(SQLModel):
     declared_ctc_accuracy: int
     remark: str
     declared_past_ctc: int
-    estimated_ctc_range: str
+    estimated_ctc_range: CtcRange
     most_likely_past_ctc: int
     gap: int
     highlight: str
@@ -18,6 +22,7 @@ class Graph(SQLModel):
     most_likely_ctc: int
     declared_ctc: int
     gap: int
+    gap_percentage: int
 
 class Response(SQLModel):
     info: Info

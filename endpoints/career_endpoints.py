@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from async_sessions.sessions import get_db, get_db_backend
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
+from fuzzywuzzy import fuzz
 
 from models.Career import CareerDetailsResponse
 from tools.career_tools import convert_to_datetime, overlap
@@ -13,6 +14,8 @@ career_router =APIRouter()
 @career_router.get("/career_details/{person_id}", response_model=CareerDetailsResponse, tags=['Career Details'])
 async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),db_backend: AsyncSession = Depends(get_db_backend)):
 
+    flag = False
+    companies_without_dates = []
     #govt_docs
     query = text("""
         SELECT company_name,
@@ -84,23 +87,25 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
             work_exp.append(
                 {
                     "company_name": company_name, 
-                    "start_date": "",
-                    "end_date": "",
+                    "start_date": "N/A",
+                    "end_date": "N/A",
                     "totalMonth": 0,
                     "type":"work_exp"
                     }
                 )
+            flag = True
+            companies_without_dates.append(company_name)
 
     for i, entry1 in enumerate(work_exp):
         # if entry1["end_date"]!="N/A":
         #     end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
-        if entry1["end_date"]!="":
+        if entry1["end_date"]!="N/A":
             end_date1 = await convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])        
 
             for entry2 in work_exp[i+1:]:
                 # if entry2["start_date"]!="N/A":
                 #     start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
-                if entry2["start_date"]!="":
+                if entry2["start_date"]!="N/A":
                     start_date2 = await convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
                     
                     #overlapping
@@ -226,7 +231,6 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     for i in no_of_business_sources:
         overseas_count = i[0]
     
-    
     red_flag = len(overlapping_durations) + other_count + overseas_count
     discrepancies = len(overlapping_gaps)
     good_to_know = len(gaps)
@@ -242,6 +246,25 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     else:
         meter_text = "Bad"
         
+    for i in all_exp_govt_docs:
+        if i['start_date'] =='N/A' or i['end_date'] =='N/A':
+            for j in all_exp_tenure:
+                if fuzz.partial_ratio(i['company_name'],j['company_name']) >= 80:
+                    i['start_date'] , i['end_date'], i['totalMonth'] = j['start_date'], j['end_date'], j['totalMonth']
+                    flag = False
+                    if i['company_name'] in companies_without_dates:
+                        companies_without_dates.remove(i['company_name']) 
+                        
+    #final_exp_govt_docs = list(filter(lambda i: i['start_date'] != 'N/A' and i['end_date'] != 'N/A', all_exp_govt_docs))
+    
+    #Removing elements with "N/A" dates and checking if still "N/A" exists in multiple "N/A" cases
+    final_exp_govt_docs=[]
+    for i in all_exp_govt_docs:
+        if i['start_date'] != 'N/A' or i['end_date'] !='N/A':
+            final_exp_govt_docs.append(i)
+        else:
+            flag=True
+    
     highlight = []
     if good_to_know == 0:
         highlight.append(f"No GAPs are identified that is not reflected in the resume")
@@ -257,13 +280,20 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     else:
         highlight.append(f"{other_count + overseas_count} situations of Business Income identified that could be related to moonlighting (Red Flag)")
     
+    if flag == True:
+        if len(companies_without_dates) >1:
+            company_list = ','.join(map(str,companies_without_dates))
+            highlight.append(f"No starting date and ending date of employment found for these companies - {company_list} in government documents")
+        else:
+            highlight.append(f"No starting date and ending date of employment found for {companies_without_dates[0]} in government documents")
+            
     return CareerDetailsResponse(
-        all_experiences_govt_docs = all_experiences_sorted_govt_docs,
+        all_experiences_govt_docs = final_exp_govt_docs,
         all_experiences_tenure = all_experiences_sorted_tenure,
         good_to_know = good_to_know,
         red_flag = red_flag,
         discrepancies = discrepancies,
         highlight = highlight,
-        meter = meter,
-        meter_text = meter_text
+        career_score = meter,
+        career_score_text = meter_text
     )

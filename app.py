@@ -549,14 +549,14 @@ class IncomeSummaryResponse(SQLModel):
     total_overseas_income: float
     total_business_income: float
     total_income: float
-    meter: int
-    meter_text: str
     monthly_income_details: List[MonthlyIncome]
     income_sources: IncomeSources
     #ADDED
     # overseas_income_sources: int  # New field
     # overseas_income_amount: float  # New field
     income_percentage: dict
+    income_score_percentage: int
+    income_score_text: str
     
 def convert_date_format(date_str):
     month_mapping = {
@@ -575,30 +575,58 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
 
     query = text("""
         SELECT
-            COUNT(DISTINCT case when "A2(section_1)" LIKE '192%' then deductor_tan_no end) as salary_accounts,
-            COUNT(DISTINCT case when "A2(section_1)" LIKE '194%' then deductor_tan_no end) as other_income_accounts,
-            SUM(case when "A2(section_1)" LIKE '192%' then CAST("A7(paid_credited_amt)" AS FLOAT) end) as total_salary,
-            SUM(case when "A2(section_1)" LIKE '194%' then CAST("A7(paid_credited_amt)" AS FLOAT) end) as total_other_income
+            COUNT(DISTINCT CASE WHEN "A2(section_1)" LIKE '192%' THEN deductor_tan_no END) AS salary_accounts,
+            COUNT(DISTINCT CASE 
+                WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
+                THEN deductor_tan_no 
+            END) AS other_income_accounts,
+            COUNT(DISTINCT CASE 
+                WHEN "A2(section_1)" IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') 
+                THEN deductor_tan_no 
+            END) AS business_income_accounts,
+            SUM(CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) END) AS total_salary,
+            SUM(CASE 
+                WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
+                THEN 
+                    CASE 
+                        WHEN "A2(section_1)" IN ('206CA', '206CE', '206CJ', '206CL', '206CN') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        WHEN "A2(section_1)" IN ('206CK', '206CM') AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01 > 200000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        WHEN "A2(section_1)" IN ('206CB', '206CC','206CD') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.025
+                        WHEN "A2(section_1)" IN ('206CF', '206CG','206CH') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.02
+                        WHEN "A2(section_1)" = '206CI' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.05
+                        WHEN "A2(section_1)" = '206CR' AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001 > 5000000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001
+                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+                    END
+            END) AS total_other_income,
+            SUM(CASE 
+                WHEN "A2(section_1)" IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O')
+                THEN
+                    CASE
+                        WHEN "A2(section_1)" = '206CN' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+                    END
+            END) AS total_business_income
         FROM "26as_details"
         WHERE person_id = :person_id
-        AND strftime('%Y-%m-%d', 
-            substr("A3(transaction_dt)", 8, 4) || '-' || 
-            case substr("A3(transaction_dt)", 4, 3)
-                when 'Jan' then '01'
-                when 'Feb' then '02'
-                when 'Mar' then '03'
-                when 'Apr' then '04'
-                when 'May' then '05'
-                when 'Jun' then '06'
-                when 'Jul' then '07'
-                when 'Aug' then '08'
-                when 'Sep' then '09'
-                when 'Oct' then '10'
-                when 'Nov' then '11'
-                when 'Dec' then '12'
-            end || '-' ||
-            substr("A3(transaction_dt)", 1, 2)
-        ) >= strftime('%Y-%m-%d', 'now', '-12 months')
+            AND strftime('%Y-%m-%d', 
+                substr("A3(transaction_dt)", 8, 4) || '-' || 
+                CASE substr("A3(transaction_dt)", 4, 3)
+                    WHEN 'Jan' THEN '01'
+                    WHEN 'Feb' THEN '02'
+                    WHEN 'Mar' THEN '03'
+                    WHEN 'Apr' THEN '04'
+                    WHEN 'May' THEN '05'
+                    WHEN 'Jun' THEN '06'
+                    WHEN 'Jul' THEN '07'
+                    WHEN 'Aug' THEN '08'
+                    WHEN 'Sep' THEN '09'
+                    WHEN 'Oct' THEN '10'
+                    WHEN 'Nov' THEN '11'
+                    WHEN 'Dec' THEN '12'
+                    END || '-' ||
+                    substr("A3(transaction_dt)", 1, 2)
+            ) >= strftime('%Y-%m-%d', 'now', '-12 months')
+
     """)
 
     
@@ -606,7 +634,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         SELECT 
             strftime('%Y-%m', formatted_date) as month_year,
             (CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as salary_amount,
-            (CASE WHEN "A2(section_1)" LIKE '194%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as other_income_amount
+            (CASE WHEN "A2(section_1)"  = "194DA" OR "A2(section_1)" = "194I(a)" OR "A2(section_1)" = "194I(b)" OR "A2(section_1)" = "194I" OR "A2(section_1)" = "194LA" OR "A2(section_1)" = "194S" OR "A2(section_1)" = "194M" OR "A2(section_1)" = "194N" OR "A2(section_1)" = "194P" OR "A2(section_1)" = "194Q" OR "A2(section_1)" = "196DA" OR "A2(section_1)" = "206CA" OR "A2(section_1)" = "206CB" OR "A2(section_1)" = "206CC" OR "A2(section_1)" = "206CD" OR "A2(section_1)" = "206CE" OR "A2(section_1)" = "206CF" OR "A2(section_1)" = "206CG" OR "A2(section_1)" = "206CH" OR "A2(section_1)" = "206CI" OR "A2(section_1)" = "206CJ" OR "A2(section_1)" = "206CK" OR "A2(section_1)" = "206CL" OR "A2(section_1)" = "206CM" OR "A2(section_1)" = "206CP" OR "A2(section_1)" = "206CR" THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as other_income_amount
         FROM (
             SELECT 
                 CASE
@@ -652,7 +680,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
             WHEN B2 = '206CQ' OR B2 = '206CO' THEN 
                 CASE 
                     WHEN CAST(B7 AS FLOAT) / 0.05 <= 700000 THEN CAST(B7 AS FLOAT) / 0.05
-                    ELSE CAST(B7 AS FLOAT) / 0.05
+                    ELSE CAST(B7 AS FLOAT) / 0.20
                 END
             ELSE 0 END) as overseas_income_amount,
         deductor_tan_no
@@ -676,7 +704,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
             B7,
             deductor_tan_no
         FROM "26as_details"
-        WHERE person_id = :person_id AND B2 = '206CQ'
+        WHERE person_id = :person_id AND B2 = '206CQ' OR B2 = '206CO'
     ) 
     GROUP BY strftime('%Y-%m', formatted_date)
     """)
@@ -767,9 +795,12 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     print(f"SUMMMARY: {summary}")
     salary_accounts = summary[0]
     other_income_accounts = summary[1]
-    total_salary = summary[2] if summary[2] is not None else 0.0
-    total_other_income = summary[3] if summary[3] is not None else 0.0
-    
+    business_income_accounts = summary[2]
+    #print(other_income_accounts)
+    total_salary = summary[3] if summary[3] is not None else 0.0
+    total_other_income = summary[4] if summary[4] is not None else 0.0
+    total_business_income = summary[5] if summary[5] is not None else 0.0
+    #print(total_other_income)
     risk_indicator = 1
     if other_income_accounts > 2 * salary_accounts:
         if total_other_income < 3 * total_salary:
@@ -801,44 +832,55 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         5: "Very High"
     }
     
-    total_income = total_salary + total_other_income + total_overseas_income
+    total_income = total_salary + total_other_income + total_business_income + total_overseas_income
 
     # Calculate the percentage share of each income type
     salary_percentage = (total_salary / total_income * 100) if total_income > 0 else 0
     other_income_percentage = (total_other_income / total_income * 100) if total_income > 0 else 0
+    business_income_percentage = (total_business_income / total_income * 100) if total_income > 0 else 0
     overseas_income_percentage = (total_overseas_income / total_income * 100) if total_income > 0 else 0
 
     income_percentage = {
         "salary_percentage": salary_percentage,
-        "other_income_percentage": 0.0,
+        "other_income_percentage": other_income_percentage,
         "overseas_income_percentage": overseas_income_percentage,
-        "business_income_percentage": other_income_percentage,
+        "business_income_percentage": business_income_percentage,
         "personal_income_percentage": 0.0
     }
 
+    income_score_percentage=max(0,100- 2*(len(other_income_sources))-10*(len(overseas_income_sources)))
+    if income_score_percentage >= 95:
+        income_score_text="Excellent"
+    elif income_score_percentage >= 90  and income_score_percentage < 95:
+        income_score_text="Good"
+    elif income_score_percentage >= 80  and income_score_percentage < 90:
+        income_score_text="Concern"
+    else:
+        income_score_text="Bad"
             
     return IncomeSummaryResponse(
-        # number_of_salary_accounts=salary_accounts,
-        number_of_salary_accounts=len(salary_sources),
-        number_of_other_income_accounts=0,
+        number_of_salary_accounts=salary_accounts,
+        #number_of_salary_accounts=len(salary_sources),
+        number_of_other_income_accounts=other_income_accounts,
         # number_of_business_income_accounts=other_income_accounts,
-        number_of_business_income_accounts=len(other_income_sources),
+        #number_of_business_income_accounts=len(other_income_sources),
+        number_of_business_income_accounts=business_income_accounts,
         number_of_personal_savings_account=0,
         number_of_overseas_acount = len(overseas_income_sources),
-        total_number_of_income_sources=salary_accounts + other_income_accounts,
+        total_number_of_income_sources=salary_accounts + other_income_accounts + business_income_accounts +len(overseas_income_sources),
         total_salary_received=total_salary,
-        total_other_income=0.0,
-        total_business_income=total_other_income,
+        total_other_income=total_other_income,
+        total_business_income=total_business_income,
         total_personal_savings=0.0,
         total_overseas_income=total_overseas_income,
         total_income=total_salary + total_other_income + total_overseas_income,
-        meter=risk_indicator,
-        meter_text=finance_meter_map.get(risk_indicator,1),
         monthly_income_details=monthly_income_details,
         income_sources=income_sources,
         # overseas_income_sources=len(overseas_income_sources),
         # overseas_income_amount=sum(monthly_overseas_income.values()),
-        income_percentage=income_percentage
+        income_percentage=income_percentage,
+        income_score_percentage=income_score_percentage,
+        income_score_text=income_score_text
     )
 
  

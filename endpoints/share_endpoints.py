@@ -15,7 +15,7 @@ from db.db import session
 share_router = APIRouter()
 
 
-@share_router.post("/send_report",response_model=str, tags=['Share'])
+@share_router.post("/send_report",tags=['Share'])
 async def send_report(share: ShareEmail):
     failed=[]
     for x in share.email:
@@ -38,7 +38,7 @@ async def send_report(share: ShareEmail):
                 session.add(a)
                 session.commit()
                 session.refresh(a)
-                sharedid = await encrypt({"id":a.id})
+                sharedid = await encrypt({"id":a.id,"iat":now})
                 a.sharedid = sharedid
                 a.shared_url = share.url+f"/{sharedid}"
                 session.add(a)
@@ -62,9 +62,9 @@ async def send_report(share: ShareEmail):
             #logger.debug(e)
             failed.append(x)
     if len(failed)<1:
-        return JSONResponse(status_code=HTTP_200_OK,content="All Emails sent successfully")
+        return JSONResponse(status_code=HTTP_200_OK,content={"body":"All Emails sent successfully"})
     else:
-       return JSONResponse(status_code=HTTP_400_BAD_REQUEST,content=f"Failed to send emails to : {failed}")
+       return JSONResponse(status_code=HTTP_400_BAD_REQUEST,content={"body":f"Failed to send emails to : {failed}"})
 
 
 
@@ -82,22 +82,26 @@ async def check_share(key: str):
         data = await decrypt(key)
         share_found= session.get(Share,data["id"])
         if share_found is not None:
-            #logger.debug(share_found)
-            if share_found.expiry>= datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Active":
-                share_found.lastlogin=datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30)
-                session.add(share_found)
-                session.commit()
-                session.refresh(share_found)
-                return share_found.formid
-            elif share_found.expiry< datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Active":
-                share_found.status="Expired"
-                session.add(share_found)
-                session.commit()
-                raise ExpiryException
-            elif share_found.expiry< datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Expired":
-                raise ExpiryException
-            elif share_found.status=="Terminated":
-                raise TerminatedException
+            appl_found = session.get(ApplicationList,share_found.appid)
+            if appl_found is not None:
+                #logger.debug(share_found)
+                if share_found.expiry>= datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Active":
+                    share_found.lastlogin=datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30)
+                    session.add(share_found)
+                    session.commit()
+                    session.refresh(share_found)
+                    return JSONResponse(status_code=HTTP_200_OK,content={"id":share_found.formid, "candidatetype":appl_found.candidatetype})
+                elif share_found.expiry< datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Active":
+                    share_found.status="Expired"
+                    session.add(share_found)
+                    session.commit()
+                    raise ExpiryException
+                elif share_found.expiry< datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Expired":
+                    raise ExpiryException
+                elif share_found.status=="Terminated":
+                    raise TerminatedException
+            else:
+                raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Application not found")
         else:
             raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Share not found")
     except HTTPException as ht:
@@ -136,7 +140,7 @@ async def reshare(id: ReShare):
         raise HTTPException(status_code=HTTP_404_NOT_FOUND,detail="Share not found")
 
 @share_router.post("/get-list/", tags=['Share'])
-async def stop_share(id: Optional[GetShare] = None):
+async def get_share(id: Optional[GetShare] = None):
     share_list = await get_share_list()
     if share_list is not None:
         return share_list

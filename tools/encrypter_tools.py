@@ -11,6 +11,8 @@ key=b'j5YFcJldLdm4ZRWq8eLkDR5nKx5j3rIb638HSIEd0bM='
 cipher_suite = Fernet(key)
 
 async def encrypt(data:dict)->str:
+    if "iat" in data.keys():
+        data['iat'] = data['iat'].isoformat() if 'iat' in data else None
     json_str = json.dumps(data)
     json_str = lzma.compress(json_str.encode())
     cipher_text = cipher_suite.encrypt(json_str)
@@ -23,6 +25,8 @@ async def decrypt(key:str)->dict:
         decrypted_text = cipher_suite.decrypt(decoded_text)
         decrypted_text = lzma.decompress(decrypted_text)
         decoded_dict = json.loads(decrypted_text.decode())
+        if "iat" in decoded_dict.keys():
+            decoded_dict['iat'] = datetime.datetime.strptime(decoded_dict['iat'], '%Y-%m-%dT%H:%M:%S.%f') if 'iat' in decoded_dict else None
         return decoded_dict
     except InvalidToken as e:
         traceback.print_exc()

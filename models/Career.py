@@ -8,5 +8,5 @@ class CareerDetailsResponse(SQLModel):
     red_flag: int
     discrepancies: int
     highlight: list
-    meter: int
-    meter_text: str
+    career_score: int
+    career_score_text: str

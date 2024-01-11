@@ -5,7 +5,7 @@ from starlette.status import HTTP_404_NOT_FOUND
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 
-from models.new_hire import Response,Info,Graph
+from models.new_hire import Response,Info,Graph,CtcRange
 
 new_hire_router = APIRouter()
 
@@ -133,10 +133,14 @@ async def get_past_ctc_accuracy(id: int,  db_1: AsyncSession = Depends(get_db_ba
 
     net_ctc = total_salary + max_difference_value + pf
     possible_ctc_variation = int(net_ctc*15/100)
-    estimated_ctc_range = f"{net_ctc}-{net_ctc+possible_ctc_variation}"
+    estimated_ctc_range = CtcRange(
+        lower=net_ctc,
+        upper=net_ctc+possible_ctc_variation
+        )
     most_likely_past_ctc = int(((2*net_ctc)+possible_ctc_variation)/2)
     gap = int(currentctc-most_likely_past_ctc)      
     ctc_accuracy = min(int((most_likely_past_ctc/currentctc)*100),100)
+    gap_percentage = int((gap/currentctc)*100)
     
     if ctc_accuracy < 80:
         remark = "Incorrect"
@@ -170,7 +174,8 @@ async def get_past_ctc_accuracy(id: int,  db_1: AsyncSession = Depends(get_db_ba
         possible_ctc_variation=possible_ctc_variation,
         most_likely_ctc=most_likely_past_ctc,
         declared_ctc=currentctc,
-        gap=gap
+        gap=gap,
+        gap_percentage= gap_percentage
     )
 
     return Response(

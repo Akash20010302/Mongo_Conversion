@@ -1,7 +1,10 @@
 from typing import Optional
 from sqlmodel import SQLModel
 
-
+class IdealCtcBand(SQLModel):
+    lower: int
+    upper: int
+    
 class CtcResponse(SQLModel):
     #offeredctc: str
     #currentctc: str
@@ -10,6 +13,7 @@ class CtcResponse(SQLModel):
     #change_percent: float
     ctc_benchmark_analysis: list
     offeredctc: str
+    ideal_ctc_band: IdealCtcBand
     past_ctc: str
     change_in_ctc: float
     ctc_growth: list

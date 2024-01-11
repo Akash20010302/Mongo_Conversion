@@ -7,7 +7,7 @@ from starlette.status import HTTP_404_NOT_FOUND
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from tools.benchmark_tools import get_indicator, convert_to_datetime,get_ratio_indicator
-from models.Benchmark import ChangeResponse, CtcResponse, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
+from models.Benchmark import ChangeResponse,IdealCtcBand, CtcResponse, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
 
 benchmark_router = APIRouter()
 
@@ -235,7 +235,10 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
 #       Risk = risk,
 #        remarks=expense_income_remark
 #    )
-
+    idealctcband = IdealCtcBand(
+        lower=1200000,
+        upper=2800000
+    )
 
     new_response = NewResponse(
         HouseholdTakeHome=offeredctc,
@@ -270,6 +273,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     ctc = CtcResponse(
         ctc_benchmark_analysis= output,
         offeredctc=str(offeredctc),
+        ideal_ctc_band= idealctcband,
         past_ctc=str(currentctc),
         change_in_ctc=change_in_ctc,
         ctc_growth= ctc_growth,
