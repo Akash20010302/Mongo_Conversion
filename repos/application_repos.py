@@ -17,3 +17,11 @@ async def get_company_name(id:int):
         res= session.exec(statement).first()
         res= session.get(CompCanList,res.compid).companyid
         return session.get(CompanyList,res).legalname
+
+async def select_all_appid(coid:list)->list:
+    with Session(engine) as session:
+        statement=select(ApplicationList.id)
+        statement=statement.where(ApplicationList.isDeleted == False)
+        statement=statement.where(ApplicationList.compid.in_(coid))
+        res = session.exec(statement).all()
+        return res

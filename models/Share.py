@@ -45,12 +45,6 @@ class StopShare(SQLModel):
     class Config:
         from_attributes = True 
         
-class GetShare(SQLModel):
-    token: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
-        
 class ReShare(SQLModel):
     id: int
     expiry: Optional[int]

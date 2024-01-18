@@ -14,12 +14,20 @@ about_router = APIRouter()
 async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2: AsyncSession = Depends(get_db)):
     # Fetch data from the first database
     result_1 = await db_1.execute(
-        text('SELECT "firstName", "middleName", "lastName", phone, email, dob, age, gender, marital_status, '
-        'education, experience, city, salary, home, "homeLoan", car, "carLoan", "twoWheeler", "twoWheelerLoan", '
-        '"creditCard", "personlLoan", stocks, "realEstate","spouseExperience", totalkids, '
-        'totaladults FROM "form" WHERE appid = :id'),# changed id to appid
+        text('SELECT firstName, middleName, lastName, phone, email, dob, age, gender, marital_status, '
+        'education, experience, city, salary, home, homeLoan, car, carLoan, twoWheeler, twoWheelerLoan, '
+        'creditCard, personalLoan, stocks, realEstate,spouseExperience, totalkids, '
+        'totaladults FROM `form` WHERE appid = :id'),# changed id to appid
         {"id": id}
     )
+#     result_1 = await db_1.execute(
+#     text('SELECT `firstName`, `middleName`, `lastName`, phone, email, dob, age, gender, marital_status, '
+#     'education, experience, city, salary, home, `homeLoan`, car, `carLoan`, `twoWheeler`, `twoWheelerLoan`, '
+#     '`creditCard`, `personlLoan`, stocks, `realEstate`,`spouseExperience`, totalkids, '
+#     'totaladults FROM `form` WHERE appid = :id'),
+#     {"id": id}
+# )
+
 
     personal_info_1 = result_1.fetchone()
 
@@ -75,11 +83,13 @@ async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2
 
     result_role = await db_1.execute(
         text('SELECT "role" '
-        'FROM "tenure" WHERE formid = :id'),# changed id to appid
+        'FROM `tenure` WHERE formid = :id'),# changed id to appid
         {"id": id}
     )
     role = result_role.fetchone()
 
+    from loguru import logger
+    #logger.debug(f"PERSONAL INFO: {personal_info_1}")
 
     # Combine data from both databases into the Info response
     return Info(
@@ -109,7 +119,7 @@ async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2
         total_experience=total_duration,
         work_industry= "N/A",
         skillset="N/A",
-        current_role=role[0],
+        current_role=role[0] if role is not None else "N/A",
         tenure_last_job=personal_info_1[10],
         household_income= salary_response
         )

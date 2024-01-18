@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from sqlmodel import Session, select
 from db.db import session
 from db.db import engine
@@ -26,9 +27,11 @@ async def convert_to_share_list(res):
     json_data = json.dumps(mapped_data)
     return mapped_data
 
-async def get_share_list():
+async def get_share_list(appid:Optional[list]=None):
     with Session(engine) as session:
         statement = select(Share).where(Share.isDeleted == False)
+        if appid is not None:
+            statement =statement.where(Share.formid.in_(appid))
         res= session.exec(statement).all()
         if res is not None:
             res = await convert_to_share_list(res)

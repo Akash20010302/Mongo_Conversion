@@ -1,3 +1,4 @@
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, FastAPI
 from sqlalchemy.sql import text
@@ -17,7 +18,7 @@ from endpoints.share_endpoints import share_router
 from endpoints.newhire_endpoints import new_hire_router
 
 app = FastAPI()
-
+logger.success("Report Server StartUp Successful")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,7 +81,7 @@ async def get_retail_account_details_for_person_id(person_id: str, db: AsyncSess
             {"person_id": person_id}
         )
         retail_account_data = retail_account_result.fetchall()
-        #print("Retail Account Data:", retail_account_data)
+        
         
         
         
@@ -266,7 +267,7 @@ async def get_account_summary(person_id: str, db: AsyncSession = Depends(get_db)
 
     result = await db.execute(query, {"person_id": person_id})
     summary = result.fetchone()
-    print(f"-----[debug] SUMMARY: {summary}")
+   
     return AccountSummaryResponse(
         number_of_closed_accounts=summary[0],
         total_balance=float(summary[1]) if summary[1] is not None else 0.0,
@@ -342,7 +343,7 @@ def compute_score_factors(enquiries_data, summary_data, active_account_count, cr
         score_factors.append("Limited inquiries")
         
     # Rule 4: Not enough balance decreases on active non-mortgage accounts
-    print(f"CREDIT: {credit_score}")
+    
     if credit_score < 600:  
         score_factors.append("Not enough balance decreases on active non-mortgage accounts")
     else:
@@ -467,11 +468,11 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
     response = CombinedResponseModel(
         active_accounts=active_accounts,
         enquiries=Enquiries(
-            queries_last_1_month=enquiries_data[0],
-            queries_last_3_months=enquiries_data[1],
-            queries_last_6_months=enquiries_data[2],
-            queries_last_12_months=enquiries_data[3],
-            queries_last_24_months=enquiries_data[4]
+            queries_last_1_month=enquiries_data[0] if enquiries_data[0] is not None else 0,
+            queries_last_3_months=enquiries_data[1] if enquiries_data[1] is not None else 0,
+            queries_last_6_months=enquiries_data[2] if enquiries_data[2] is not None else 0,
+            queries_last_12_months=enquiries_data[3] if enquiries_data[3] is not None else 0,
+            queries_last_24_months=enquiries_data[4] if enquiries_data[4] is not None else 0
         ),
         active_account_count=active_account_count,
         number_of_closed_accounts=summary_data[0],
@@ -575,7 +576,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
 
     query = text("""
         SELECT
-            COUNT(DISTINCT CASE WHEN "A2(section_1)" LIKE '192%' THEN deductor_tan_no END) AS salary_accounts,
+            COUNT(DISTINCT CASE WHEN "A2(section_1)" = "192" THEN deductor_tan_no END) AS salary_accounts,
             COUNT(DISTINCT CASE 
                 WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
                 THEN deductor_tan_no 
@@ -584,6 +585,10 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
                 WHEN "A2(section_1)" IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') 
                 THEN deductor_tan_no 
             END) AS business_income_accounts,
+			COUNT(DISTINCT CASE 
+                WHEN "A2(section_1)" IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') 
+                THEN deductor_tan_no 
+            END) AS personal_income_accounts,
             SUM(CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) END) AS total_salary,
             SUM(CASE 
                 WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
@@ -605,7 +610,15 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
                         WHEN "A2(section_1)" = '206CN' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
                         ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
                     END
-            END) AS total_business_income
+            END) AS total_business_income,
+			SUM(CASE 
+                WHEN "A2(section_1)" IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD')
+                THEN
+                    CASE
+                        WHEN "A2(section_1)" = '192A' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.1
+                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+                    END
+            END) AS total_personal_income
         FROM "26as_details"
         WHERE person_id = :person_id
             AND strftime('%Y-%m-%d', 
@@ -654,7 +667,15 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
                         WHEN "A2(section_1)" = '206CN' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
                         ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
                     END
-            END)) as business_income_amount
+            END)) as business_income_amount,
+			(SUM(CASE 
+                WHEN "A2(section_1)" IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD')
+                THEN
+                    CASE
+                        WHEN "A2(section_1)" = '192A' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.1
+                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+                    END
+            END)) AS total_personal_income
 				FROM (
             SELECT 
                 CASE
@@ -674,7 +695,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
                 "A2(section_1)",
                 "A7(paid_credited_amt)"
             FROM "26as_details"
-            WHERE person_id = :person_id
+            WHERE person_id = "1"
             AND strftime('%Y-%m-%d', formatted_date) >= strftime('%Y-%m-%d', 'now', '-12 months')
         ) 
         GROUP BY strftime('%Y-%m', formatted_date)
@@ -691,7 +712,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     for element in detA_raw_data:
         detA[element[0]]=element[1]
     
-    #print(detA)
+    
     
     overseas_income_query = text("""
     SELECT 
@@ -734,7 +755,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     overseas_income_result = await db.execute(overseas_income_query, {"person_id": person_id, "source": "206CQ"})
     overseas_income_raw_data = overseas_income_result.fetchall()
 
-    #print(f"-----[DEBUG] Overseas income source: {list(overseas_income_raw_data)}")
+    
     
     # Process overseas income data
     overseas_income_sources = []
@@ -767,9 +788,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
 
     # Fetch and process monthly income results
     monthly_income_raw_data = monthly_income_result.fetchall()
-    print(f"DEBUG---- {monthly_income_raw_data}")
 
-    print(row[1])
     monthly_income_details = [
     MonthlyIncome(
         month=row[0],
@@ -777,14 +796,14 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         other_income_amount=float(row[2]) if row[2] is not None else 0.0,
         overseas_income_amount=0.0,
         business_income_amount=float(row[3]) if row[3] is not None else 0.0,
-        personal_income_amount=0.0,
+        personal_income_amount=float(row[4]) if row[4] is not None else 0.0,
         total_income_amount=0.0
         
         
     )
     for row in monthly_income_raw_data if row[0]
     ]
-    #print(monthly_income_details)
+    monthly_income_details.reverse()
     #Added for overseas
     total_overseas_income = 0.0
     for income_detail in monthly_income_details:
@@ -812,15 +831,17 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
 
     result = await db.execute(query, {"person_id": person_id})
     summary = result.fetchone()
-    print(f"SUMMMARY: {summary}")
+    
     salary_accounts = summary[0]
     other_income_accounts = summary[1]
     business_income_accounts = summary[2]
-    #print(other_income_accounts)
-    total_salary = summary[3] if summary[3] is not None else 0.0
-    total_other_income = summary[4] if summary[4] is not None else 0.0
-    total_business_income = summary[5] if summary[5] is not None else 0.0
-    #print(total_other_income)
+    personal_income_accounts = summary[3]
+    
+    total_salary = summary[4] if summary[4] is not None else 0.0
+    total_other_income = summary[5] if summary[5] is not None else 0.0
+    total_business_income = summary[6] if summary[6] is not None else 0.0
+    total_personal_income = summary[7] if summary[7] is not None else 0.0
+    
     risk_indicator = 1
     if other_income_accounts > 2 * salary_accounts:
         if total_other_income < 3 * total_salary:
@@ -852,20 +873,21 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         5: "Very High"
     }
     
-    total_income = total_salary + total_other_income + total_business_income + total_overseas_income
+    total_income = total_salary + total_other_income + total_business_income + total_overseas_income + total_personal_income
 
     # Calculate the percentage share of each income type
     salary_percentage = (total_salary / total_income * 100) if total_income > 0 else 0
     other_income_percentage = (total_other_income / total_income * 100) if total_income > 0 else 0
     business_income_percentage = (total_business_income / total_income * 100) if total_income > 0 else 0
     overseas_income_percentage = (total_overseas_income / total_income * 100) if total_income > 0 else 0
+    personal_income_percentage = (total_personal_income / total_income * 100) if total_income > 0 else 0
 
     income_percentage = {
         "salary_percentage": salary_percentage,
         "other_income_percentage": other_income_percentage,
         "overseas_income_percentage": overseas_income_percentage,
         "business_income_percentage": business_income_percentage,
-        "personal_income_percentage": 0.0
+        "personal_income_percentage": personal_income_percentage
     }
 
     income_score_percentage=max(0,100- 2*(other_income_accounts))-10*(len(overseas_income_sources)+business_income_accounts)
@@ -885,15 +907,15 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         # number_of_business_income_accounts=other_income_accounts,
         #number_of_business_income_accounts=len(other_income_sources),
         number_of_business_income_accounts=business_income_accounts,
-        number_of_personal_savings_account=0,
+        number_of_personal_savings_account=personal_income_accounts,
         number_of_overseas_acount = len(overseas_income_sources),
-        total_number_of_income_sources=salary_accounts + other_income_accounts + business_income_accounts +len(overseas_income_sources),
+        total_number_of_income_sources=salary_accounts + other_income_accounts + business_income_accounts +len(overseas_income_sources)+personal_income_accounts,
         total_salary_received=total_salary,
         total_other_income=total_other_income,
         total_business_income=total_business_income,
-        total_personal_savings=0.0,
+        total_personal_savings=total_personal_income,
         total_overseas_income=total_overseas_income,
-        total_income=total_salary + total_other_income + total_overseas_income,
+        total_income=total_salary + total_other_income + total_overseas_income+total_personal_income+total_business_income,
         monthly_income_details=monthly_income_details,
         income_sources=income_sources,
         # overseas_income_sources=len(overseas_income_sources),

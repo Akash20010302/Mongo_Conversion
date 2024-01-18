@@ -4,6 +4,10 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
+class estimatedExpense(SQLModel):
+    lower:int
+    upper: int
+
 class IdealCtcBand(SQLModel):
     lower: int
     upper: int
@@ -27,7 +31,7 @@ class NewResponse(SQLModel):
     OtherIncome: float
     TotalTakeHome: float
     EMI_CreditCard: float
-    EstimatedExpense: str
+    EstimatedExpense: estimatedExpense
     MostLikelyExpense: int
     E_IRatio: float
 
@@ -36,7 +40,7 @@ class PreviousResponse(SQLModel):
     OtherIncome: float
     TotalTakeHome: float
     EMI_CreditCard: float
-    EstimatedExpense: str
+    EstimatedExpense: estimatedExpense
     MostLikelyExpense: int
     E_IRatio: float
 
@@ -68,11 +72,12 @@ class PayAnalysis(SQLModel):
 
 
 class TenureAnalysis(SQLModel):
+    #work_exp: list[dict]
     work_exp : list
-    overlapping_durations: list
-    gaps: list
-    avg_tenure: float
-    median_tenure: float
+    #overlapping_durations: list
+    #gaps: list
+    avg_tenure: int 
+    median_tenure: int
     Risk: str
     remarks: str
     total_exp: int

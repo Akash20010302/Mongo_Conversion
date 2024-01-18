@@ -13,18 +13,22 @@ cipher_suite = Fernet(key)
 async def encrypt(data:dict)->str:
     if "iat" in data.keys():
         data['iat'] = data['iat'].isoformat() if 'iat' in data else None
-    json_str = json.dumps(data)
-    json_str = lzma.compress(json_str.encode())
+    json_str = json.dumps(data, ensure_ascii=False)
+    json_bytes = json_str.encode('utf-8')
+    json_str = lzma.compress(json_bytes)
     cipher_text = cipher_suite.encrypt(json_str)
     encrypted_str = base64.urlsafe_b64encode(cipher_text).decode()
     return encrypted_str
 
 async def decrypt(key:str)->dict:
     try:
+        padding = len(key) % 4
+        if padding != 0:
+            key += '=' * (4 - padding)
         decoded_text = base64.urlsafe_b64decode(key.encode())
         decrypted_text = cipher_suite.decrypt(decoded_text)
-        decrypted_text = lzma.decompress(decrypted_text)
-        decoded_dict = json.loads(decrypted_text.decode())
+        decompressed_data = lzma.decompress(decrypted_text)
+        decoded_dict = json.loads(decompressed_data.decode('utf-8'))
         if "iat" in decoded_dict.keys():
             decoded_dict['iat'] = datetime.datetime.strptime(decoded_dict['iat'], '%Y-%m-%dT%H:%M:%S.%f') if 'iat' in decoded_dict else None
         return decoded_dict
@@ -33,5 +37,6 @@ async def decrypt(key:str)->dict:
         logger.error(f"InvalidToken exception during decryption: {e}")
         return {}
     except Exception as e:
+        traceback.print_exc()
         logger.error(e)
         return{}

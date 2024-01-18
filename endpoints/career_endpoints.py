@@ -116,7 +116,7 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
                         total_months = (end_date_dt.year - start_date_dt.year) * 12 + (end_date_dt.month - start_date_dt.month)
 
                         overlapping_durations.append({
-                        "company_name": entry2["company_name"],
+                        
                         "start_date": entry2["start_date"],
                         "end_date": entry1["end_date"],
                         "totalMonth": total_months,
@@ -211,27 +211,45 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     all_experiences_sorted_tenure = sorted(all_exp_tenure, key=lambda x: x.get("start_date", "N/A"))
     
     
-    # other_income_query = text("""
-    #                              SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" like "194%" AND person_id = :person_id
-    #                              """)
-    
-    business_income_query = text("""
-                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" IN('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') AND person_id = :person_id;
+    other_income_query = text("""
+                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" IN('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') AND person_id = :person_id
                                  """)
     
-    #other_income = await db.execute(other_income_query,{"person_id":person_id})
+    business_income_query = text("""
+                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" IN('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') AND person_id = :person_id
+                                 """)
+    
+    overseas_income_query = text("""
+                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "B2" IN('206CQ','206CO') AND person_id = :person_id
+                                 """)
+    
+    personal_income_query = text("""
+                                 SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" IN('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') AND person_id = :person_id
+                                 """)
+    
+    other_income = await db.execute(other_income_query,{"person_id":person_id})
     business_income = await db.execute(business_income_query, {"person_id": person_id})
+    overseas_income = await db.execute(overseas_income_query, {"person_id": person_id})
+    personal_income = await db.execute(personal_income_query, {"person_id": person_id})
     
-    #no_of_other_sources = other_income.fetchall()
+    no_of_other_sources = other_income.fetchall()
     no_of_business_sources = business_income.fetchall()
+    no_of_overseas_sources = overseas_income.fetchall()
+    no_of_personal_sources = personal_income.fetchall()
     
-    # for i in no_of_other_sources:
-    #     other_count = i[0]
+    for i in no_of_other_sources:
+        other_count = i[0]
     
     for i in no_of_business_sources:
         business_count = i[0]
+        
+    for i in no_of_overseas_sources:
+        overseas_count = i[0]
+        
+    for i in no_of_personal_sources:
+        personal_count = i[0]
     
-    red_flag = len(overlapping_durations) + business_count
+    red_flag = len(overlapping_durations) + business_count + other_count + overseas_count + personal_count
     discrepancies = len(overlapping_gaps)
     good_to_know = len(gaps)
     
@@ -275,10 +293,18 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
         highlight.append(f"No situation of dual employment found (Red Flag)")
     else:
         highlight.append(f"{len(overlapping_durations)} situation of dual employment found (Red Flag)")
-    if other_count + overseas_count == 0:
-        highlight.append(f"No situations of Business Income identified that could be related to moonlighting (Red Flag)" ) 
-    else:
-        highlight.append(f"{other_count + overseas_count} situations of Business Income identified that could be related to moonlighting (Red Flag)")
+        
+    if business_count == 0:
+        business_count = "No"
+    if other_count == 0:
+        other_count = "No"
+    if overseas_count == 0:
+        overseas_count = "No"
+    if personal_count == 0:
+        personal_count = "No"
+           
+    highlight.append(f"{business_count} situations of Business, {overseas_count} situations of overseas, {personal_count} situations of personal and {other_count} situations of other Income identified that could be related to moonlighting (Red Flag)" ) 
+   
     
     if flag == True:
         if len(companies_without_dates) >1:

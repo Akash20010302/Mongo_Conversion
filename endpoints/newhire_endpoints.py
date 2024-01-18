@@ -25,7 +25,7 @@ async def get_past_ctc_accuracy(id: int,  db_1: AsyncSession = Depends(get_db_ba
     result = await db_1.execute(
         text('SELECT currentctc, rolebudget, offeredctc '
              'FROM compcanlist '
-             'WHERE "id" = :id'
+             'WHERE id = :id'
         ),
         {"id": yy[0]}
     )
@@ -124,7 +124,7 @@ async def get_past_ctc_accuracy(id: int,  db_1: AsyncSession = Depends(get_db_ba
     
     monthly_income_dict = dict(monthly_income_raw_data)
     salary_list = list(monthly_income_dict.values())
-    print(salary_list)
+    #print(salary_list)
     if len(salary_list) != 12:
         total_salary = int(((sum(salary_list)-max_difference_value)/len(salary_list))*12)
     else:

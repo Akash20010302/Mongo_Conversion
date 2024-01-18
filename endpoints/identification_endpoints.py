@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
-from starlette.status import HTTP_404_NOT_FOUND
+from starlette.status import HTTP_404_NOT_FOUND,HTTP_400_BAD_REQUEST
 from auth.auth import AuthHandler
 from repos.form_repos import get_identification
 from tools.file_manager import download_file_from_s3, encode_file_to_base64, parse_s3_url
@@ -10,63 +10,73 @@ auth_handler = AuthHandler()
 
 @identification_router.get("/identification/{id}", tags=['Identification'])
 async def iden_info(id:int):
-    pancon = aadharcon = aadhardis = pandis =0
-    meter = 1
+    aadhardis = pandis =0
     iden = await get_identification(id)
-    if iden["govt_aadhaar_number"] is not None:
-        iden["govt_Aadhar_Number_flag"] = True
+    if iden is None:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Identification Detail Not Found")
+    if iden["Aadhar_Number"] is not None:
+        iden["Aadhar_Number_flag"] = True
         if (iden["govt_aadhaar_number"]!=iden["Aadhar_Number"]):
-            iden["Aadhar_Number_flag"] = False
+            iden["govt_aadhaar_number_flag"] = False
             aadhardis+=1
         else:
-            iden["Aadhar_Number_flag"] = True
-            aadharcon+=1
-            meter+=1
-        if (iden["govt_aadhaar_number"]!=iden["Extracted_Aadhar_Number"]):
+            iden["govt_aadhaar_number_flag"] = True
+        if (iden["Aadhar_Number"]!=iden["Extracted_Aadhar_Number"]):
             iden["Extracted_Aadhar_Number_flag"] = False
             aadhardis+=1
         else:
             iden["Extracted_Aadhar_Number_flag"] = True
-            aadharcon+=1
-            meter+=1
     else:
-        iden["govt_aadhaar_number"] = "N/A"
-        iden["govt_Aadhar_Number_flag"] = False
-        if(iden["Aadhar_Number"]!=iden["Extracted_Aadhar_Number"]):
-                iden["Extracted_Aadhar_Number_flag"] = False
+        iden["Aadhar_Number"] = "N/A"
+        iden["Aadhar_Number_flag"] = False
+        aadhardis+=1
+        if iden["govt_aadhaar_number"] is not None:
+            iden["govt_aadhaar_number_flag"] = True
+            if(iden["govt_aadhaar_number"]!=iden["Extracted_Aadhar_Number"]):
+                    iden["Extracted_Aadhar_Number_flag"] = False
+                    aadhardis+=1
+            else:
+                iden["Extracted_Aadhar_Number_flag"] = True
+        else:
+            iden["govt_aadhaar_number"] = "N/A"
+            iden["govt_aadhaar_number_flag"] = False
+            iden["Extracted_Aadhar_Number_flag"] = True if iden["Extracted_Aadhar_Number"] is not None else False
+            if iden["Extracted_Aadhar_Number"] == False:
                 aadhardis+=1
-        else:
-            iden["Extracted_Aadhar_Number_flag"] = True
-            aadharcon+=1
-            meter+=1
-    if iden["govt_pan_number"] is not None:
-        iden["govt_pan_Number_flag"] = True
+                iden["Extracted_Aadhar_Number"] = "N/A"
+                
+    if iden["Pan_Number"] is not None:
+        iden["Pan_Number_flag"] = True
         if (iden["govt_pan_number"]!=iden["Pan_Number"]):
-            iden["Pan_Number_flag"] = False
+            iden["govt_pan_number_flag"] = False
             pandis+=1
         else:
-            iden["Pan_Number_flag"] = True
-            pancon+=1
-            meter+=1
-        if (iden["govt_pan_number"]!=iden["Extracted_Pan_Number"]):
+            iden["govt_pan_number_flag"] = True
+        if (iden["Pan_Number"]!=iden["Extracted_Pan_Number"]):
             iden["Extracted_Pan_Number_flag"] = False
             pandis+=1
         else:
             iden["Extracted_Pan_Number_flag"] = True
-            pancon+=1
-            meter+=1
     else:
-        iden["govt_pan_Number"] = "N/A"
-        iden["govt_pan_Number_flag"] = False
-        if(iden["Pan_Number"]!=iden["Extracted_Pan_Number"]):
-            iden["Extracted_Pan_Number_flag"] = False
-            pandis+=1
+        iden["Pan_Number"] = "N/A"
+        iden["Pan_Number_flag"] = False
+        pandis+=1
+        if iden["govt_pan_number"] is not None:
+            iden["govt_pan_number_flag"] = True
+            if(iden["govt_pan_number"]!=iden["Extracted_Pan_Number"]):
+                    iden["Extracted_Pan_Number_flag"] = False
+                    pandis+=1
+            else:
+                iden["Extracted_Pan_Number_flag"] = True
         else:
-            iden["Extracted_Pan_Number_flag"] = True
-            pancon+=1
-            meter+=1
-    iden["consistency"] = aadharcon + pancon
+            iden["govt_pan_number"] = "N/A"
+            iden["govt_pan_number_flag"] = False
+            iden["Extracted_Pan_Number_flag"] = True if iden["Extracted_Pan_Number"] is not None else False
+            if iden["Extracted_Pan_Number"] == False:
+                pandis+=1
+                iden["Extracted_Pan_Number"] = "N/A"
     iden["discrepancy"] = aadhardis + pandis
+    iden["consistency"] = 6 - iden["discrepancy"]
     if aadhardis > 0:
         iden["Aadhar_Status"] = "Concern"
     else:
@@ -75,17 +85,13 @@ async def iden_info(id:int):
         iden["Pan_Status"] = "Concern"
     else:
         iden["Pan_Status"] = "Verified"
-    iden["meter"] = min(5,meter)
-    if iden["consistency"] == 0:
-        iden["consistency_meter"]= "Very Low"
-    elif iden["consistency"] == 1:
-        iden["consistency_meter"] = "Low"
-    elif iden["consistency"] == 2:
-        iden["consistency_meter"] = "Medium"      
-    elif iden["consistency"] == 3:
-        iden["consistency_meter"]= "High"
+    iden["meter"] = int(iden["consistency"]/6 *100)
+    if iden["discrepancy"] == 0:
+        iden["meter_text"]= "Good"
+    elif (iden["govt_pan_number_flag"]== True and iden["govt_aadhaar_number_flag"]==True) and (iden["Extracted_Pan_Number_flag"]==False or iden["Extracted_Aadhar_Number_flag"]==False):
+        iden["meter_text"]= "Concern"
     else:
-        iden["consistency_meter"]= "Very High"
+        iden["meter_text"]= "Bad"
     if iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Verified":
         iden["Remarks"] = "Both PAN and AADHAAR are Consistent."
     elif iden["Aadhar_Status"] == "Concern" and iden["Pan_Status"] == "Concern":

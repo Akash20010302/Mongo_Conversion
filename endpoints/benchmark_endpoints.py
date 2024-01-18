@@ -7,7 +7,7 @@ from starlette.status import HTTP_404_NOT_FOUND
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from tools.benchmark_tools import get_indicator, convert_to_datetime,get_ratio_indicator
-from models.Benchmark import ChangeResponse,IdealCtcBand, CtcResponse, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
+from models.Benchmark import ChangeResponse,IdealCtcBand, CtcResponse,estimatedExpense, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
 
 benchmark_router = APIRouter()
 
@@ -16,27 +16,40 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     ##appid to compid mapping:
     xx = await db_1.execute(
         text('SELECT compid '
-             'FROM applicationlist '
+             'FROM `applicationlist` '
              'WHERE id = :id'
         ),
         {"id": id}
     )        
     yy = xx.fetchone()
     #print(yy)
+    #from loguru import logger
+    #logger.debug(f"COMP_ID: {yy}")
     ##Extracting currentctc, offeredctc from compcanlist
+    # result = await db_1.execute(
+    #     text('SELECT currentctc, rolebudget, offeredctc '
+    #          'FROM `compcanlist` '
+    #          'WHERE id = :id'
+    #     ),
+    #     {"id": yy[0]}
+    # )
+    # logger.debug(f"OUTPUT: {result.fetchall()}")
+    
+    # ctc_info = result.fetchone()
+    # logger.debug(f"OUTPUT: {result.fetchone()}")
+    
     result = await db_1.execute(
-        text('SELECT currentctc, rolebudget, offeredctc '
-             'FROM compcanlist '
-             'WHERE "id" = :id'
-        ),
-        {"id": yy[0]}
+    text('SELECT currentctc, rolebudget, offeredctc '
+         'FROM `compcanlist` '
+         'WHERE id = :id'),
+    {"id": yy[0]}
     )
-
     ctc_info = result.fetchone()
-
-    if ctc_info is None:
+    #logger.debug(f"OUTPUT: {ctc_info}")
+    if not ctc_info:
+        # logger.debug(f"FAIL: {ctc_info}")
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Personal information not found for id : {id}")
-
+    #logger.debug("PASSED CTC")
     currentctc = float(ctc_info[0])
     offeredctc = float(ctc_info[2])
 
@@ -81,7 +94,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     )        
     firstname = first_name.fetchone()
     name = firstname[0]
-
+    #logger.debug("PASSED FIRST NAME")
     ##payanalysis
     current_percentile =((currentctc-1200000)/(2800000-1200000))*100
     offered_percentile =((offeredctc-1200000)/(2800000-1200000))*100
@@ -100,15 +113,54 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         pay_analysis_remark = "Very High" 
     pay_analysis_final_remark = f"Based on {name}'s Education, location, Industry, role and experience, he will be moving from {current_percentile} percentile to {offered_percentile} percentile level. This will be considered as a {pay_analysis_remark} change in Pay."       
 ##Expense/Income ratio:
+    #query_1 = text("""
+    #    SELECT
+    #        SUM(case when "A2(section_1)" LIKE '194%' then CAST("A7(paid_credited_amt)" AS FLOAT) end) as total_other_income
+    #    FROM "26as_details"
+    #    WHERE person_id = :person_id
+    #""")
     query_1 = text("""
         SELECT
-            SUM(case when "A2(section_1)" LIKE '194%' then CAST("A7(paid_credited_amt)" AS FLOAT) end) as total_other_income
+            SUM(CASE 
+                WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
+                THEN 
+                    CASE 
+                        WHEN "A2(section_1)" IN ('206CA', '206CE', '206CJ', '206CL', '206CN') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        WHEN "A2(section_1)" IN ('206CK', '206CM') AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01 > 200000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+                        WHEN "A2(section_1)" IN ('206CB', '206CC','206CD') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.025
+                        WHEN "A2(section_1)" IN ('206CF', '206CG','206CH') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.02
+                        WHEN "A2(section_1)" = '206CI' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.05
+                        WHEN "A2(section_1)" = '206CR' AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001 > 5000000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001
+                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+                    END
+            END) AS total_other_income
         FROM "26as_details"
         WHERE person_id = :person_id
+            AND strftime('%Y-%m-%d', 
+                substr("A3(transaction_dt)", 8, 4) || '-' || 
+                CASE substr("A3(transaction_dt)", 4, 3)
+                    WHEN 'Jan' THEN '01'
+                    WHEN 'Feb' THEN '02'
+                    WHEN 'Mar' THEN '03'
+                    WHEN 'Apr' THEN '04'
+                    WHEN 'May' THEN '05'
+                    WHEN 'Jun' THEN '06'
+                    WHEN 'Jul' THEN '07'
+                    WHEN 'Aug' THEN '08'
+                    WHEN 'Sep' THEN '09'
+                    WHEN 'Oct' THEN '10'
+                    WHEN 'Nov' THEN '11'
+                    WHEN 'Dec' THEN '12'
+                    END || '-' ||
+                    substr("A3(transaction_dt)", 1, 2)
+            ) >= strftime('%Y-%m-%d', 'now', '-12 months')
+
     """)
+
 
     result_1 = await db_2.execute(query_1, {"person_id": id})
     summary_1 = result_1.fetchone()
+    #logger.debug(f"PASSED SUMMARY: {summary_1}")
     total_other_income = summary_1[0] if summary_1[0] is not None else 0.0
 
     query_2 = text("""
@@ -121,9 +173,15 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     result_2 = await db_2.execute(query_2, {"person_id": id})
     summary_2 = result_2.fetchall()
     if not summary_2:
-            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"No records found for person_id : {id}")
+        emi = 0
+    else:
+        emi = sum(float(row[3]) for row in summary_2 if row[3] is not None and row[3] != "")
+    #logger.debug(f"PASSED SUMMARY 2: {summary_2}")
+    
+    # if not summary_2:
+    #         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"No records found for person_id : {id}")
 
-    emi = sum(float(row[3]) for row in summary_2 if row[3] is not None and row[3] != "")
+    #emi = sum(float(row[3]) for row in summary_2 if row[3] is not None and row[3] != "")
 
     factor=0.3
     new_exp = ((offeredctc)*0.4)+emi
@@ -135,9 +193,11 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     ctc_change =(offeredctc - currentctc)
     income_change = (new_income- pre_income)
     exp_change = (new_exp - pre_exp)
-    new_ratio =round(float((new_exp/new_income)*100),0)
-    pre_ratio = round(float((pre_exp/pre_income)*100),0)
+    
     most_likely_expense = round(float((pre_exp+new_exp)/2),0)
+    new_ratio =round(float((most_likely_expense/new_income)*100),0)
+    pre_ratio = round(float((most_likely_expense/pre_income)*100),0)
+    #print(new_ratio,pre_ratio)
 
     if new_ratio > pre_ratio:
         ratio_change = new_ratio - pre_ratio
@@ -239,13 +299,17 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         lower=1200000,
         upper=2800000
     )
+    estimated_range = estimatedExpense(
+        lower = new_decrease,
+        upper = new_increase
+    )
 
     new_response = NewResponse(
         HouseholdTakeHome=offeredctc,
         OtherIncome=total_other_income,
         TotalTakeHome=new_income,
         EMI_CreditCard=emi,
-        EstimatedExpense=f"{new_decrease}-{new_increase}",
+        EstimatedExpense=estimated_range,
         MostLikelyExpense=most_likely_expense,
         E_IRatio=new_ratio
     )
@@ -255,7 +319,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         OtherIncome=total_other_income,
         TotalTakeHome=pre_income,
         EMI_CreditCard=emi,
-        EstimatedExpense=f"{new_decrease}-{new_increase}",
+        EstimatedExpense=estimated_range,
         MostLikelyExpense=most_likely_expense,
         E_IRatio=pre_ratio
     )
@@ -297,13 +361,13 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         change_ = change_response
     )
 
-
+    
     query = text("""
         SELECT company_name,
             passbook_year,
             passbook_month
         FROM
-            get_passbook_details
+            get_passbook_details WHERE person_id = :person_id
         GROUP BY
             company_name, passbook_year, passbook_month
     """
@@ -328,30 +392,62 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     overlapping_durations=[]
     gaps=[]
     durations = []
+    #count=0
+    
     
     for company_name, dates in company_data.items():
-        if dates!= ["N/A"]:
-            start_date = min(dates)
-            end_date = max(dates)
-            duration = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-            result.append(
-                {
-                    "company_name": company_name, 
-                    "start_date": start_date.strftime("%m-%Y"), 
-                    "end_date": end_date.strftime("%m-%Y"), 
-                    "duration":duration
+        if dates != "N/A":
+            dates = [date for date in dates if isinstance(date, datetime.datetime)] 
+            if dates:
+                start_date = min(dates)
+                end_date = max(dates)
+                duration = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+
+                #row_value = 1 if count % 2 == 0 else 2
+                result.append(
+                    {
+                        #"row": row_value,
+                        "company_name": company_name,
+                        "startYear": start_date.strftime("%m-%d-%Y"),
+                        "endYear": end_date.strftime("%m-%d-%Y"),
+                        "duration": duration
                     }
                 )
-            
-            durations.append(duration)
-        else:
-            result.append({"company_name": company_name, "start_date": "N/A","end_date": "N/A","duration":"N/A"})
+                #count+=1
+                durations.append(duration)
+        #else:
+        #    result.append({"company_name": company_name, "start_date": "N/A","end_date": "N/A","duration":"N/A"})
 
-    total_duration = float(sum(durations)/12)
+    
+    
+    
+    result = sorted(result, key=lambda x: x.get("startYear", "N/A"))
+    #for i in result:
+    #    row_value = 1 if i%2== 0 else 2
+    #    result.append({"row": row_value})
+    for i, item in enumerate(result):
+        item["row"] = 1 if i % 2 == 0 else 2    
+    #result = sorted(result, key=lambda x: (x.get("start_date", "N/A"), x.get("row", 0)))
+    ## for inserting type
+    for i, job in enumerate(result):
+        if i > 0:
+            prev_job = sorted(result, key=lambda x: x.get("startYear", "N/A"))[i - 1]
+            if job["startYear"] < prev_job["endYear"]:
+                job["workType"] = "overlap"
+    #            overlap_time = (prev_job["end_date"] - job["start_date"]).days // 30
+    #            job["overlap_time"] = overlap_time
+            else:
+                job["workType"] = "regular"
+    #            job["overlap_time"] = 0
+        else:
+            job["workType"] = "regular"
+    #        job["overlap_time"] = 0
+
+    total_duration = round(float(sum(durations)/12),2)
     total_duration = round(total_duration, 0)
     total_jobs = len(result)
-    median_duration = statistics.median(durations)
-    average_duration = statistics.mean(durations)
+    median_duration = int(statistics.median(durations))
+    average_duration = int(statistics.mean(durations))
     if average_duration < 15:
         risk_duration = "Very High"
     elif 15 <= average_duration < 35:
@@ -372,30 +468,30 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     #print(result)
     #overlapping
     
-    for i, entry1 in enumerate(result):
-        if entry1["end_date"]!="N/A":
-            end_date1 = await convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
-
-            for entry2 in result[i+1:]:
-                if entry2["start_date"]!="N/A":
-                    start_date2 = await convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
-
-                    if end_date1 > start_date2:
-                        overlapping_durations.append({
-                        "company_name": entry2["company_name"],
-                        "start_date": entry2["start_date"],
-                        "end_date": entry1["end_date"]
-                        })
-                        #gaps
-                    if end_date1 < start_date2:
-                        gap_start_date = (end_date1 + datetime.timedelta(days=1)).strftime("%m-%Y")
-                        gap_end_date = (start_date2 - datetime.timedelta(days=1)).strftime("%m-%Y")
-                        gaps.append({"start_date": gap_start_date, "end_date": gap_end_date})
+    #for i, entry1 in enumerate(result):
+    #    if entry1["end_date"]!="N/A":
+    #        end_date1 = await convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
+    #
+    #        for entry2 in result[i+1:]:
+    #            if entry2["start_date"]!="N/A":
+    #                start_date2 = await convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
+    #
+    #                if end_date1 > start_date2:
+    #                    overlapping_durations.append({
+    #                    "company_name": entry2["company_name"],
+    #                    "start_date": entry2["start_date"],
+    #                    "end_date": entry1["end_date"]
+    #                    })
+    #                    #gaps
+    #                if end_date1 < start_date2:
+    #                    gap_start_date = (end_date1 + datetime.timedelta(days=1)).strftime("%m-%Y")
+    #                    gap_end_date = (start_date2 - datetime.timedelta(days=1)).strftime("%m-%Y")
+    #                    gaps.append({"start_date": gap_start_date, "end_date": gap_end_date})
 
     tenure = TenureAnalysis(
         work_exp = result,
-        overlapping_durations = overlapping_durations,
-        gaps = gaps,
+        #overlapping_durations = overlapping_durations,
+        #gaps = gaps,
         avg_tenure= average_duration,
         median_tenure= median_duration,
         Risk= risk_duration,

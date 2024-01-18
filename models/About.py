@@ -38,6 +38,6 @@ class Info(SQLModel):
     total_experience: float
     work_industry: str
     skillset: str
-    current_role: str
+    current_role: Optional[str]
     tenure_last_job: int
     household_income: HouseholdIncome

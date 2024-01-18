@@ -8,36 +8,69 @@ from repos.kyc_repos import find_kyc
 
 async def convert_to_basic_info(res,res2):
     if res.report is not None:
-        s = {
-            "firstName" : res.firstName,
-            "middleName" : res.middleName,
-            "lastName" : res.lastName,
-            "phone" : res.phone,
-            "email" : res.email,
-            "age" : res.age,
-            "gender" : res.gender,
-            "marital_status" : res.marital_status,
-            "city" : res.city,
-            "role" : (max(res2, key=lambda x: x.to_date)).role,
-            "company" : (max(res2, key=lambda x: x.to_date)).company,
-            "legalname" : await get_company_name(res.id),
-            "report_date" : res.report
-        }
+        if res2 is not None and len(res2)>0:
+            s = {
+                "firstName" : res.firstName,
+                "middleName" : res.middleName,
+                "lastName" : res.lastName,
+                "phone" : res.phone,
+                "email" : res.email,
+                "age" : res.age,
+                "gender" : res.gender,
+                "marital_status" : res.marital_status,
+                "city" : res.city,
+                "role" : (max(res2, key=lambda x: x.to_date)).role,
+                "company" : (max(res2, key=lambda x: x.to_date)).company,
+                "legalname" : await get_company_name(res.id),
+                "report_date" : res.report
+            }
+        else:
+            s = {
+                "firstName" : res.firstName,
+                "middleName" : res.middleName,
+                "lastName" : res.lastName,
+                "phone" : res.phone,
+                "email" : res.email,
+                "age" : res.age,
+                "gender" : res.gender,
+                "marital_status" : res.marital_status,
+                "city" : res.city,
+                "role" : "N/A",
+                "company" : "N/A",
+                "legalname" : await get_company_name(res.id),
+                "report_date" : res.report
+            }
     else:
-        s = {
-            "firstName" : res.firstName,
-            "middleName" : res.middleName,
-            "lastName" : res.lastName,
-            "phone" : res.phone,
-            "email" : res.email,
-            "age" : res.age,
-            "gender" : res.gender,
-            "marital_status" : res.marital_status,
-            "city" : res.city,
-            "role" : (max(res2, key=lambda x: x.to_date)).role,
-            "company" : (max(res2, key=lambda x: x.to_date)).company,
-            "legalname" : await get_company_name(res.id)
-        }
+        if res2 is not None and len(res2)>0:
+            s = {
+                "firstName" : res.firstName,
+                "middleName" : res.middleName,
+                "lastName" : res.lastName,
+                "phone" : res.phone,
+                "email" : res.email,
+                "age" : res.age,
+                "gender" : res.gender,
+                "marital_status" : res.marital_status,
+                "city" : res.city,
+                "role" : (max(res2, key=lambda x: x.to_date)).role,
+                "company" : (max(res2, key=lambda x: x.to_date)).company,
+                "legalname" : await get_company_name(res.id)
+            }
+        else:
+            s = {
+                "firstName" : res.firstName,
+                "middleName" : res.middleName,
+                "lastName" : res.lastName,
+                "phone" : res.phone,
+                "email" : res.email,
+                "age" : res.age,
+                "gender" : res.gender,
+                "marital_status" : res.marital_status,
+                "city" : res.city,
+                "role" : "N/A",
+                "company" : "N/A",
+                "legalname" : await get_company_name(res.id)
+            }
     return s
 
 async def convert_to_identification(res):

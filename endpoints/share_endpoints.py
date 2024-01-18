@@ -1,19 +1,22 @@
 import datetime
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from loguru import logger
-from starlette.status import HTTP_400_BAD_REQUEST, HTTP_200_OK, HTTP_404_NOT_FOUND
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_401_UNAUTHORIZED
+from auth.auth import AuthHandler
 from models.Application import ApplicationList
 from models.Form import Form
-from models.Share import GetShare, ReShare, Share, ShareEmail, StopShare
+from models.Share import ReShare, Share, ShareEmail, StopShare
+from repos.application_repos import select_all_appid
+from repos.compcan_repos import select_all_candidatesid_filtered
 from repos.share_repos import get_share_list
 from tools.email_tools import get_email_body, send_share_email
 from tools.encrypter_tools import decrypt, encrypt
 from db.db import session
 
 share_router = APIRouter()
-
+auth_handler = AuthHandler()
 
 @share_router.post("/send_report",tags=['Share'])
 async def send_report(share: ShareEmail):
@@ -114,7 +117,7 @@ async def check_share(key: str):
         #logger.debug(e)
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Invalid Key.")
 
-@share_router.put("/stop_share/",response_model=str, tags=['Share'])
+@share_router.put("/shared/stop_share",response_model=str, tags=['Share'])
 async def stop_share(id: StopShare):
     share_found= session.get(Share,id.id)
     if share_found is not None:
@@ -125,7 +128,7 @@ async def stop_share(id: StopShare):
     else:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND,detail="Share not found")
 
-@share_router.put("/reshare/",response_model=str, tags=['Share'])
+@share_router.put("/shared/reshare",response_model=str, tags=['Share'])
 async def reshare(id: ReShare):
     share_found= session.get(Share,id.id)
     if share_found is not None:
@@ -139,8 +142,28 @@ async def reshare(id: ReShare):
     else:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND,detail="Share not found")
 
-@share_router.post("/get-list/", tags=['Share'])
-async def get_share(id: Optional[GetShare] = None):
-    share_list = await get_share_list()
-    if share_list is not None:
-        return share_list
+@share_router.get(f"/shared/get-list", tags=['Share'])
+async def get_share(user=Depends(auth_handler.get_current_admin)):
+    if user.role not in ['Super Admin','Admin']:
+        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Unauthorized Access")
+    if user.role == "Super Admin":
+        share_list = await get_share_list()
+        if share_list is not None:
+            return share_list
+        else:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Nothing Shared")
+    elif user.role == "Admin":
+        comcanlist_found = await select_all_candidatesid_filtered(user.companyid)
+        if comcanlist_found is None or len(comcanlist_found)<0:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="No Candidate Present.")
+        appl_list =await select_all_appid(comcanlist_found)
+        if appl_list is None or len(appl_list)<0:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="No Application Present.")
+        #logger.debug(appl_list)
+        share_list = await get_share_list(appl_list)
+        if share_list is not None:
+            return share_list
+        else:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Nothing Shared")
+    else:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Unknown Error")
