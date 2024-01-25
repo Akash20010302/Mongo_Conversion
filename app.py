@@ -1,3 +1,4 @@
+from db.db import session
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, FastAPI
@@ -36,6 +37,10 @@ app.include_router(career_router)
 app.include_router(share_router)
 app.include_router(new_hire_router)
 
+@app.get('/sessionrollback',tags=['App'])
+async def rollback():
+    session.rollback()
+    return "Sucess"
 
 class TwentySixAsDetails(SQLModel):
     person_id: str
@@ -542,7 +547,7 @@ class IncomeSummaryResponse(SQLModel):
     number_of_personal_savings_account: int
     number_of_business_income_accounts: int
     number_of_overseas_acount: int
-    
+    red_flag: int
     total_number_of_income_sources: int
     total_salary_received: float
     total_other_income: float
@@ -558,6 +563,9 @@ class IncomeSummaryResponse(SQLModel):
     income_percentage: dict
     income_score_percentage: int
     income_score_text: str
+    highlights: List[str]
+    income_highlights: List[str]
+    distribution_highlights: List[str]
     
 def convert_date_format(date_str):
     month_mapping = {
@@ -695,7 +703,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
                 "A2(section_1)",
                 "A7(paid_credited_amt)"
             FROM "26as_details"
-            WHERE person_id = "1"
+            WHERE person_id = :person_id
             AND strftime('%Y-%m-%d', formatted_date) >= strftime('%Y-%m-%d', 'now', '-12 months')
         ) 
         GROUP BY strftime('%Y-%m', formatted_date)
@@ -883,11 +891,11 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     personal_income_percentage = (total_personal_income / total_income * 100) if total_income > 0 else 0
 
     income_percentage = {
-        "salary_percentage": salary_percentage,
-        "other_income_percentage": other_income_percentage,
-        "overseas_income_percentage": overseas_income_percentage,
-        "business_income_percentage": business_income_percentage,
-        "personal_income_percentage": personal_income_percentage
+        "salary_percentage": round(salary_percentage),
+        "other_income_percentage": round(other_income_percentage),
+        "overseas_income_percentage": round(overseas_income_percentage),
+        "business_income_percentage": round(business_income_percentage),
+        "personal_income_percentage": round(personal_income_percentage)
     }
 
     income_score_percentage=max(0,100- 2*(other_income_accounts))-10*(len(overseas_income_sources)+business_income_accounts)
@@ -899,7 +907,111 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         income_score_text="Concern"
     else:
         income_score_text="Bad"
+    
+    total_number_of_income_sources=salary_accounts + other_income_accounts + business_income_accounts +len(overseas_income_sources)+personal_income_accounts
+    
+    highlights =[]
+    
+    highlights.append(f"Total {total_number_of_income_sources} income sources were identified in tht last 12 months")
+    
+    if business_income_accounts > 0:
+        highlights.append(f"{business_income_accounts} Business income sources contributing {round(business_income_percentage)}% of the total income (Red Flag)")
+    if other_income_accounts > 0:
+        highlights.append(f"{other_income_accounts} Other income sources contributing {round(other_income_percentage)}% of the total income (Red Flag)")
+    if personal_income_accounts > 0:
+        highlights.append(f"{personal_income_accounts} Personal income sources contributing {round(personal_income_percentage)}% of the total income (Red Flag)")
+    if len(overseas_income_sources) > 0:
+        highlights.append(f"{len(overseas_income_sources)} Overseas income sources contributing {round(overseas_income_percentage)}% of the total income (Red Flag)")
+    
+    income_highlights = []
+    if business_income_percentage + overseas_income_percentage >5:
+        income_highlights.append(f"Additional income is available from other businesses. Since this income is more than 5% of the overall income, it should be declared.")
+    elif (business_income_percentage>0 or overseas_income_percentage>0) and business_income_percentage + overseas_income_percentage <=5:
+        income_highlights.append(f"Additional income is available from other businesses. But this income is less than or equal to 5% of the overall income.")
+    elif  business_income_percentage<=0 and overseas_income_percentage<=0:
+        income_highlights.append(f"No additional income is available from other businesses.")
+        
+    if business_income_percentage>salary_percentage:
+        income_highlights.append(f"Business income is more than the Salary. This could lead to the candidate paying more attention to the additional income sources.")
+    else:
+        income_highlights.append(f"Salary income is more than the Business income. This has lesser chances of the candidate paying attention to the additional income sources.")
+    if salary_percentage<50:
+        income_highlights.append(f"Salary seems to be less than 50% of the candidate's income. Financial needs from Salary income does not sufficiently met. This could be a reason for future attrition.")
+    else:
+        income_highlights.append(f"Salary seems to be more than 50% of the candidate's income. Financial needs from Salary income sufficiently met.")
+    
+    summary_messages = []
+    
+    for i in range(1, len(monthly_income_raw_data)):
+        current_month, current_salary_income, current_other_income, current_business_income, current_personal_income = monthly_income_raw_data[i]
+        current_overseas_income = monthly_overseas_income.get(current_month, 0.0)
+        previous_month,previous_salary_income, previous_other_income, previous_business_income,previous_personal_income= monthly_income_raw_data[i - 1]
+        previous_overseas_income = monthly_overseas_income.get(previous_month, 0.0)
+        previous_business_income = previous_business_income if previous_business_income is not None else 0
+        previous_other_income = previous_other_income if previous_other_income is not None else 0 
+        previous_personal_income = previous_personal_income if previous_personal_income is not None else 0
+        previous_overseas_income = previous_overseas_income if previous_overseas_income is not None else 0
+        current_business_income = current_business_income if current_business_income is not None else 0
+        current_other_income = current_other_income if current_other_income is not None else 0
+        current_overseas_income = current_overseas_income if current_overseas_income is not None else 0
+        current_personal_income = current_personal_income if current_personal_income is not None else 0
+        previous_income, current_income = previous_business_income + previous_other_income +previous_personal_income +previous_overseas_income , current_business_income+current_other_income+current_overseas_income+current_personal_income 
+    
+        if previous_income == 0:
+            growth_percentage = float('inf')  
+        else:
+            growth_percentage = ((current_income - previous_income) / previous_income) * 100
+
+        if growth_percentage > 200:
+            summary_messages.append(f"{current_month} saw more than {growth_percentage:.2f}% growth")
             
+        if previous_business_income == 0:
+            business_growth_percentage = 0 
+        else:
+            business_growth_percentage = ((current_business_income - previous_business_income) / previous_business_income) * 100
+
+        if previous_personal_income == 0:
+            personal_growth_percentage = 0
+        else:
+            personal_growth_percentage = ((current_personal_income - previous_personal_income) / previous_personal_income) * 100
+
+        if previous_other_income == 0:
+            other_growth_percentage = 0  
+        else:
+            other_growth_percentage = ((current_other_income - previous_other_income) / previous_other_income) * 100
+
+        if previous_overseas_income == 0:
+            overseas_growth_percentage = 0
+        else:
+            overseas_growth_percentage = ((current_overseas_income - previous_overseas_income) / previous_overseas_income) * 100
+
+
+
+    summary_line = ", ".join(summary_messages) if len(summary_messages)>0 else "" 
+    
+    distribution_highlights = []
+    
+    if salary_accounts == 1 :
+        if len(summary_line) > 0:
+            distribution_highlights.append(f"Salary came from {salary_accounts} source (TBD). Month over month, salary payments are consistent.{summary_line}  compared to the respective previous month")
+        else:
+            distribution_highlights.append(f"Salary came from {salary_accounts} source (TBD). Month over month, salary payments are consistent.")
+    elif salary_accounts >1:
+        if len(summary_line) > 0:
+            distribution_highlights.append(f"Salary came from {salary_accounts} sources (TBD). Month over month, salary payments are consistent.{summary_line} compared to the respective previous month")
+        else:
+            distribution_highlights.append(f"Salary came from {salary_accounts} sources (TBD). Month over month, salary payments are consistent.")
+    
+    if business_growth_percentage > 0:
+        distribution_highlights.append("Business income has a growing trend month-over-month. This could lead to drop in performance")
+    if overseas_growth_percentage > 0:
+        distribution_highlights.append("Overseas income has a growing trend month-over-month. This could lead to drop in performance")
+    if personal_growth_percentage > 0:
+        distribution_highlights.append("Personal income has a growing trend month-over-month. This could lead to drop in performance")
+    if other_growth_percentage > 0:
+        distribution_highlights.append("Other income has a growing trend month-over-month. This could lead to drop in performance")
+      
+    
     return IncomeSummaryResponse(
         number_of_salary_accounts=salary_accounts,
         #number_of_salary_accounts=len(salary_sources),
@@ -909,7 +1021,8 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         number_of_business_income_accounts=business_income_accounts,
         number_of_personal_savings_account=personal_income_accounts,
         number_of_overseas_acount = len(overseas_income_sources),
-        total_number_of_income_sources=salary_accounts + other_income_accounts + business_income_accounts +len(overseas_income_sources)+personal_income_accounts,
+        total_number_of_income_sources=total_number_of_income_sources,
+        red_flag = other_income_accounts + business_income_accounts + personal_income_accounts + len(overseas_income_sources),
         total_salary_received=total_salary,
         total_other_income=total_other_income,
         total_business_income=total_business_income,
@@ -922,10 +1035,13 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         # overseas_income_amount=sum(monthly_overseas_income.values()),
         income_percentage=income_percentage,
         income_score_percentage=income_score_percentage,
-        income_score_text=income_score_text
+        income_score_text=income_score_text,
+        highlights = highlights,
+        income_highlights = income_highlights,
+        distribution_highlights = distribution_highlights
     )
 
  
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run('app:app', host='0.0.0.0', port=8080, reload=True)
+# if __name__ == '__main__':
+#     import uvicorn
+#     uvicorn.run('app:app', host='0.0.0.0', port=8080, reload=True)

@@ -75,17 +75,31 @@ async def convert_to_basic_info(res,res2):
 
 async def convert_to_identification(res):
     res2 = await find_kyc(res.id)
-    s = {
-        "Aadhar_Number" : res.Aadhar_Number,
-        "Pan_Number" : res.Pan_Number.upper(),
-        "Extracted_Aadhar_Number" : res.Extracted_Aadhar_Number,
-        "Extracted_Pan_Number" : res.Extracted_Pan_Number,
-        "aadharurl" : res.aadharurl,
-        "panurl" : res.panurl,
-        "govt_pan_number" : res2.kyc_details_pan_number,
-        "govt_aadhaar_number" : res2.kyc_details_aadhaar_number
-    }
-    return s
+    if res2 is not None:
+        s = {
+            "Aadhar_Number" : res.Aadhar_Number,
+            "Pan_Number" : res.Pan_Number.upper(),
+            "Extracted_Aadhar_Number" : res.Extracted_Aadhar_Number,
+            "Extracted_Pan_Number" : res.Extracted_Pan_Number,
+            "aadharurl" : res.aadharurl,
+            "panurl" : res.panurl,
+            "govt_pan_number" : res2.kyc_details_pan_number if res2.kyc_details_pan_number is not None else None,
+            "govt_aadhaar_number" : res2.kyc_details_aadhaar_number if res2.kyc_details_aadhaar_number is not None else None
+        }
+        return s
+    else:
+        logger.debug(f"No KYC Detail of {res.id}")
+        s = {
+            "Aadhar_Number" : res.Aadhar_Number,
+            "Pan_Number" : res.Pan_Number.upper(),
+            "Extracted_Aadhar_Number" : res.Extracted_Aadhar_Number,
+            "Extracted_Pan_Number" : res.Extracted_Pan_Number,
+            "aadharurl" : res.aadharurl,
+            "panurl" : res.panurl,
+            "govt_pan_number" : None,
+            "govt_aadhaar_number" : None
+        }
+        return s
 
 async def get_basic_info(id):
     with Session(engine) as session:

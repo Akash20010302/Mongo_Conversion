@@ -4,7 +4,7 @@ import base64
 from io import BytesIO
 
 
-bucket = "trace-identification-file-storage"
+bucket = "trace-identification-file-storage-demo"
 s3 = boto3.client('s3')
 
 async def upload_file_to_s3(file, dest_name):

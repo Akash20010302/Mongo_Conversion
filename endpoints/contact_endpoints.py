@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from loguru import logger
 from models.Contact_Information import Address, Email, Index, Mobile, Name, contact_info
 from sqlalchemy.sql import text
 from db.db import session
@@ -24,11 +25,11 @@ async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend
          'FROM `form` WHERE appid = :id'),
     {"id": id}
     )
-
     contact_info_1 = result_1.fetchone()
 
     if contact_info_1 is None:
         raise HTTPException(status_code=404, detail=f"Personal information not found for id : {id}")
+    logger.debug("Passed 1")
 
     result_3 = await db_2.execute(
         text('SELECT "pan_name","contact_primary_mobile","contact_primary_email","address_post_office","address_city","address_state","address_pin_code"'
@@ -39,6 +40,7 @@ async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend
 
     if contact_info_3 is None:
         raise HTTPException(status_code=404, detail=f"Personal information not found for id {id}")
+    logger.debug("Passed 2")
 
     name_flag, pan_match, aadhar_match, tax_match, name_remarks = await check_discrepancy_1(
         f"{contact_info_1[0]} {contact_info_1[1]}", contact_info_3[0], "N/A", contact_info_3[0], "Name")
