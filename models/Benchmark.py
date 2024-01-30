@@ -82,6 +82,7 @@ class TenureAnalysis(SQLModel):
     remarks: str
     total_exp: int
     num_of_jobs: int
+    calculated_work_exp: float
 
 
 class Response(SQLModel):

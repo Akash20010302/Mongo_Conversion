@@ -39,13 +39,18 @@ async def basic_info(id:int):
 
 @summary_router.get("/application-journey/{id}", tags=['Summary'])
 async def journey_info(id:int):
-    #session.rollback()
-    #session.commit()
+    session.rollback()
+    session.commit()
+    #from 45-49
     form = session.get(Form,id)
     appl = await find_application(id)
     if form.report is None :
         return {"application_initiated":appl.createddate,"application_completed":form.formcompletiondate,"report_generated":"Under Progress","form_initiation_to_complete":(form.formcompletiondate - appl.createddate).days}
     return {"application_initiated":appl.createddate,"application_completed":form.formcompletiondate,"report_generated":form.report,"form_initiation_to_complete":(form.formcompletiondate - appl.createddate).days,"form_complete_to_report":(form.report - form.formcompletiondate).days}
+
+    
+
+
 
 # @summary_router.get("/summary/{id}", tags=['Summary'])
 # async def summary(id:int):
@@ -368,8 +373,15 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
             
     total_duration = float(sum(duration)/12)
     total_duration = round(total_duration, 0)
-    median_duration = statistics.median(duration)
-    average_duration = statistics.mean(duration)
+    #median_duration = statistics.median(duration)
+    #average_duration = statistics.mean(duration)
+    if duration:
+        median_duration = int(statistics.median(duration))
+        average_duration = int(statistics.mean(duration))
+    else:
+        median_duration = 0
+        average_duration = 0
+    
     if average_duration < 15:
         risk_duration = "Very High"
     elif 15 <= average_duration < 35:
@@ -1037,30 +1049,62 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
         highlight_1 = note_1,
         highlight_2 = note_2
     )
-    aadhar_issue=0
-    pan_issue=0
-    pan_text = None
+    # edited by samiran 1046-1069
+    #aadhar_issue=0
+    #pan_issue=0
+    #pan_text = None
+    #aadhar_text = None
+    #temp = await iden_info(int(person_id))
+    #highlight=temp["Remarks"]
+    #if temp["Aadhar_Status"] == 'Concern':
+    #    aadhar_text = "Concern"
+    #    if temp["Extracted_Aadhar_Number_flag"]==False:
+    #        aadhar_issue+=1
+    #    if temp["Aadhar_Number_flag"]==False:
+    #        aadhar_issue+=1
+    #    if temp["govt_aadhaar_number_flag"]==False:
+    #        aadhar_issue+=1
+    #        aadhar_text = "Bad"
+    #if temp["Pan_Status"] == 'Concern':
+    #    pan_text = "Concern"
+    #    if temp["govt_pan_number_flag"]==False:
+    #        pan_issue+=1
+    #        pan_text = "Bad"
+    #    if temp["Extracted_Pan_Number_flag"]==False:
+    #        pan_issue+=1
+    #    if temp["Pan_Number_flag"]==False:
+    #        pan_issue+=1
+    aadhar_issue = 0
+    pan_issue = 0
     aadhar_text = None
+    pan_text = None
+
     temp = await iden_info(int(person_id))
-    highlight=temp["Remarks"]
-    if temp["Aadhar_Status"] == 'Concern':
-        aadhar_text = "Concern"
-        if temp["Extracted_Aadhar_Number_flag"]==False:
-            aadhar_issue+=1
-        if temp["Aadhar_Number_flag"]==False:
-            aadhar_issue+=1
-        if temp["govt_aadhaar_number_flag"]==False:
-            aadhar_issue+=1
-            aadhar_text = "Bad"
-    if temp["Pan_Status"] == 'Concern':
-        pan_text = "Concern"
-        if temp["govt_pan_number_flag"]==False:
-            pan_issue+=1
-            pan_text = "Bad"
-        if temp["Extracted_Pan_Number_flag"]==False:
-            pan_issue+=1
-        if temp["Pan_Number_flag"]==False:
-            pan_issue+=1
+    highlight = temp["Remarks"]
+
+# Check for Aadhar status
+    if temp["Aadhar_Status"] in ['Concern', 'Bad']:
+        aadhar_text = temp["Aadhar_Status"]
+        aadhar_flags = [
+            temp["Extracted_Aadhar_Number_flag"],
+            temp["Aadhar_Number_flag"],
+            temp["govt_aadhaar_number_flag"]
+        ]
+        aadhar_issue = aadhar_flags.count(False)
+
+# Check for PAN status
+    if temp["Pan_Status"] in ['Concern', 'Bad']:
+        pan_text = temp["Pan_Status"]
+        pan_flags = [
+            temp["govt_pan_number_flag"],
+            temp["Extracted_Pan_Number_flag"],
+            temp["Pan_Number_flag"]
+        ]
+        pan_issue = pan_flags.count(False)
+
+
+
+
     iden=identity_info(
         pan_issue=pan_issue,
         aadhar_issue=aadhar_issue,

@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from tools.benchmark_tools import get_indicator, convert_to_datetime,get_ratio_indicator
 from models.Benchmark import ChangeResponse,IdealCtcBand, CtcResponse,estimatedExpense, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Response, TenureAnalysis
+#import math
+from loguru import logger
+
 
 benchmark_router = APIRouter()
 
@@ -375,7 +378,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     
     result = await db_2.execute(query, {"person_id": id})
     passbook_raw_data = result.fetchall()
-    
+    logger.debug(f"passbook_raw_data: {passbook_raw_data}")
     company_data = defaultdict(list)
     for exp in passbook_raw_data:
         company_name = exp[0]
@@ -446,8 +449,13 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     total_duration = round(float(sum(durations)/12),2)
     total_duration = round(total_duration, 0)
     total_jobs = len(result)
-    median_duration = int(statistics.median(durations))
-    average_duration = int(statistics.mean(durations))
+    if durations:
+        median_duration = int(statistics.median(durations))
+        average_duration = int(statistics.mean(durations))
+    else:
+        median_duration = 0
+        average_duration = 0
+        
     if average_duration < 15:
         risk_duration = "Very High"
     elif 15 <= average_duration < 35:
@@ -466,6 +474,24 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         remark = "Long"                    
     tenure_remarks = f"{name}’s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
     #print(result)
+    calculated_work_exp = 0
+    if total_jobs == 1:
+        # If there's only one job, use the duration of that job
+        calculated_work_exp = result[0]["duration"]
+        calculated_work_exp = round((calculated_work_exp/12),1)
+    elif total_jobs > 1:
+        # If there are multiple jobs, calculate the difference between the start date of the first job
+        # and the end date of the last job
+        first_job_start_date = min(result, key=lambda x: x["startYear"])["startYear"]
+        last_job_end_date = max(result, key=lambda x: x["endYear"])["endYear"]
+    
+    # Assuming startYear and endYear are in the format "%m-%d-%Y", convert them to datetime objects
+        first_job_start_date = datetime.datetime.strptime(first_job_start_date, "%m-%d-%Y")
+        last_job_end_date = datetime.datetime.strptime(last_job_end_date, "%m-%d-%Y")
+    
+    # Calculate the difference in months
+        calculated_work_exp = (last_job_end_date.year - first_job_start_date.year) * 12 + (last_job_end_date.month - first_job_start_date.month)
+        calculated_work_exp = round((calculated_work_exp/12),1)
     #overlapping
     
     #for i, entry1 in enumerate(result):
@@ -497,7 +523,8 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
         Risk= risk_duration,
         remarks= tenure_remarks,
         total_exp=total_duration,
-        num_of_jobs= total_jobs
+        num_of_jobs= total_jobs,
+        calculated_work_exp =calculated_work_exp
     )        
       
 

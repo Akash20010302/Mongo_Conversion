@@ -12,6 +12,7 @@ auth_handler = AuthHandler()
 async def iden_info(id:int):
     aadhardis = pandis =0
     iden = await get_identification(id)
+    logger.debug(f"IDEN: {iden}")
     if iden is None:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Identification Detail Not Found")
     if iden["Aadhar_Number"] is not None:
@@ -75,31 +76,101 @@ async def iden_info(id:int):
             if iden["Extracted_Pan_Number"] == False:
                 pandis+=1
                 iden["Extracted_Pan_Number"] = "N/A"
-    iden["discrepancy"] = aadhardis + pandis
-    iden["consistency"] = 6 - iden["discrepancy"]
-    if aadhardis > 0:
+#edited by samiran from line 80-104
+    #iden["discrepancy"] = aadhardis + pandis
+    #iden["consistency"] = 6 - iden["discrepancy"]
+    #if aadhardis > 0:
+    #    iden["Aadhar_Status"] = "Concern"
+    #else:
+    #    iden["Aadhar_Status"] = "Verified"
+    #if pandis > 0:
+    #    iden["Pan_Status"] = "Concern"
+    #else:
+    #    iden["Pan_Status"] = "Verified"
+    #iden["meter"] = int(iden["consistency"]/6 *100)
+    #if iden["discrepancy"] == 0:
+    #    iden["meter_text"]= "Good"
+    #elif (iden["govt_pan_number_flag"]== True and iden["govt_aadhaar_number_flag"]==True) and (iden["Extracted_Pan_Number_flag"]==False or iden["Extracted_Aadhar_Number_flag"]==False):
+    #    iden["meter_text"]= "Concern"
+    #else:
+    #    iden["meter_text"]= "Bad"
+    #if iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Verified":
+    #    iden["Remarks"] = "Both PAN and AADHAAR are Consistent."
+    #elif iden["Aadhar_Status"] == "Concern" and iden["Pan_Status"] == "Concern":
+    #    iden["Remarks"] = "Both PAN and AADHAAR have discrepancies."
+    #elif iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Concern":
+    #    iden["Remarks"] = "AADHAAR is Consistent while PAN has Discrepancies."
+    #else:
+    #    iden["Remarks"] = "PAN is Consistent while AADHAAR has Discrepancies."
+    if aadhardis == 0:
+        iden["Aadhar_Status"] = "Good"
+    elif iden["govt_aadhaar_number_flag"] and not iden["Extracted_Aadhar_Number_flag"]:
         iden["Aadhar_Status"] = "Concern"
     else:
-        iden["Aadhar_Status"] = "Verified"
-    if pandis > 0:
+        iden["Aadhar_Status"] = "Bad"
+
+    if pandis == 0:
+        iden["Pan_Status"] = "Good"
+    elif iden["govt_pan_number_flag"] and not iden["Extracted_Pan_Number_flag"]:
         iden["Pan_Status"] = "Concern"
     else:
-        iden["Pan_Status"] = "Verified"
-    iden["meter"] = int(iden["consistency"]/6 *100)
-    if iden["discrepancy"] == 0:
-        iden["meter_text"]= "Good"
-    elif (iden["govt_pan_number_flag"]== True and iden["govt_aadhaar_number_flag"]==True) and (iden["Extracted_Pan_Number_flag"]==False or iden["Extracted_Aadhar_Number_flag"]==False):
-        iden["meter_text"]= "Concern"
+        iden["Pan_Status"] = "Bad"
+
+    # Initialize counts in iden dictionary
+    iden["Good_Count"] = 0
+    iden["Concern_Count"] = 0
+    iden["Bad_Count"] = 0
+
+# Update counts based on Aadhar status
+    if iden["Aadhar_Status"] == "Good":
+        iden["Good_Count"] += 1
+    elif iden["Aadhar_Status"] == "Concern":
+        iden["Concern_Count"] += 1
     else:
-        iden["meter_text"]= "Bad"
-    if iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Verified":
-        iden["Remarks"] = "Both PAN and AADHAAR are Consistent."
+        iden["Bad_Count"] += 1
+
+# Update counts based on PAN status
+    if iden["Pan_Status"] == "Good":
+        iden["Good_Count"] += 1
+    elif iden["Pan_Status"] == "Concern":
+        iden["Concern_Count"] += 1
+    else:
+        iden["Bad_Count"] += 1
+
+    if iden["Aadhar_Status"] == "Good" and iden["Pan_Status"] == "Good":
+        iden["Remarks"] = "Both PAN and Aadhar are consistent."
     elif iden["Aadhar_Status"] == "Concern" and iden["Pan_Status"] == "Concern":
-        iden["Remarks"] = "Both PAN and AADHAAR have discrepancies."
-    elif iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Concern":
-        iden["Remarks"] = "AADHAAR is Consistent while PAN has Discrepancies."
+        iden["Remarks"] = "Both PAN and Aadhar have discrepancies."
+    elif iden["Aadhar_Status"] == "Bad" and iden["Pan_Status"] == "Bad":
+        iden["Remarks"] = "Both PAN and Aadhar have discrepancies."
+    elif iden["Aadhar_Status"] == "Good" and iden["Pan_Status"] != "Good":
+        iden["Remarks"] = "Aadhar is consistent while PAN has discrepancies."
+    elif iden["Pan_Status"] == "Good" and iden["Aadhar_Status"] != "Good":
+        iden["Remarks"] = "PAN is consistent while Aadhar has discrepancies."
+    elif iden["Aadhar_Status"] == "Concern" and iden["Pan_Status"] == "Bad":
+        iden["Remarks"] = "Both PAN and Aadhar have discrepancies."
+    elif iden["Aadhar_Status"] == "Bad" and iden["Pan_Status"] == "Concern":
+        iden["Remarks"] = "Both PAN and Aadhar have discrepancies."
+
+    # Calculate meter value
+    meter_value = iden["Good_Count"] * 50 + iden["Concern_Count"] * 26
+
+# Adjust meter text based on meter value
+    if meter_value >= 80:
+        meter_text = "Good"
+    elif meter_value >= 51:
+        meter_text = "Concern"
     else:
-        iden["Remarks"] = "PAN is Consistent while AADHAAR has Discrepancies."
+        meter_text = "Bad"
+
+# Update iden dictionary with meter information
+    iden["meter"] = meter_value
+    iden["meter_text"] = meter_text
+
+
+
+
+
     if iden is not None:
         for file_key in ['aadharurl', 'panurl']:
             if file_key in iden and iden.get(file_key):

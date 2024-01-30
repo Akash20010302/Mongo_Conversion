@@ -75,6 +75,7 @@ async def convert_to_basic_info(res,res2):
 
 async def convert_to_identification(res):
     res2 = await find_kyc(res.id)
+    # logger.debug(f"RES2: {res2}")
     s = {
         "Aadhar_Number" : res.Aadhar_Number,
         "Pan_Number" : res.Pan_Number.upper(),
@@ -82,8 +83,8 @@ async def convert_to_identification(res):
         "Extracted_Pan_Number" : res.Extracted_Pan_Number,
         "aadharurl" : res.aadharurl,
         "panurl" : res.panurl,
-        "govt_pan_number" : res2.kyc_details_pan_number,
-        "govt_aadhaar_number" : res2.kyc_details_aadhaar_number
+        "govt_pan_number" : res2.kyc_details_pan_number if res2 else "N/A",
+        "govt_aadhaar_number" : res2.kyc_details_aadhaar_number if res2 else "N/A"
     }
     return s
 
@@ -102,5 +103,6 @@ async def get_identification(id):
         statement = select(Form).where(Form.id == id, Form.isDeleted == False)
         res = session.exec(statement).first()
         if res is not None:
+            # logger.debug(f"RES: {res}")
             res = await convert_to_identification(res)
         return res

@@ -109,8 +109,11 @@ async def get_past_ctc_accuracy(id: int,  db_1: AsyncSession = Depends(get_db_ba
         {"id": id}
     )
     pf_summary = pf_result.fetchone()
-    pf = pf_summary[0] if pf_summary[0] is not None else 0
-    
+    if pf_summary:
+        pf = pf_summary[0] if pf_summary[0] is not None else 0
+    else:
+        pf = -1
+        
     differences = []
 
     for i in range(1, len(monthly_income_raw_data)):

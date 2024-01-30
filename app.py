@@ -1,4 +1,6 @@
+from fastapi.responses import JSONResponse
 from loguru import logger
+from db.db import session
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, FastAPI
 from sqlalchemy.sql import text
@@ -36,6 +38,10 @@ app.include_router(career_router)
 app.include_router(share_router)
 app.include_router(new_hire_router)
 
+@app.get('/sessionrollback',tags=['App'])
+async def rollback():
+    session.rollback()
+    return JSONResponse(content="Success")
 
 class TwentySixAsDetails(SQLModel):
     person_id: str
@@ -364,16 +370,30 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
         AND CAST(Balance AS DECIMAL) > :balance
     ''')
 
+    # query_summary = text('''
+    #     SELECT 
+    #         COUNT(*) FILTER (WHERE AccountStatus = 'Closed Account') as number_of_closed_accounts,
+    #         SUM(CAST(Balance AS DECIMAL)) as total_balance,
+    #         SUM(CAST(CreditLimit AS DECIMAL)) as total_credit_limit,
+    #         SUM(CAST(PastDueAmount AS DECIMAL)) as total_past_due
+    #     FROM RetailAccountDetails
+    #     WHERE person_id = :person_id
+    # ''')
     query_summary = text('''
         SELECT 
-            COUNT(*) FILTER (WHERE AccountStatus = 'Closed Account') as number_of_closed_accounts,
-            SUM(CAST(Balance AS DECIMAL)) as total_balance,
-            SUM(CAST(CreditLimit AS DECIMAL)) as total_credit_limit,
-            SUM(CAST(PastDueAmount AS DECIMAL)) as total_past_due
+            (SELECT DISTINCT COUNT(DISTINCT AccountNumber) FROM RetailAccountDetails WHERE AccountStatus = 'Closed Account' AND person_id = :person_id) as number_of_closed_accounts,
+            SUM(DISTINCT CAST(Balance AS DECIMAL)) as total_balance,
+            SUM(DISTINCT  CAST(CreditLimit AS DECIMAL)) as total_credit_limit,
+            SUM(DISTINCT  CAST(PastDueAmount AS DECIMAL)) as total_past_due,
+            AccountNumber
         FROM RetailAccountDetails
-        WHERE person_id = :person_id
+        WHERE person_id = :person_id      
+        
     ''')
-
+# GROUP BY AccountNumber    
+# AND OwnershipType = 'Individual'    
+# AND AccountStatus = 'Current Account'
+# AND Open = 'Yes'
     # Query for credit enquiries
     query_enquiries = text('''
         SELECT 
@@ -398,6 +418,7 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
         FROM phoneInfo
         WHERE person_id = :person_id
     ''')
+    
     query_email = text('''
         SELECT "ReportedDate", "EmailAddress"
         FROM emailInfo
@@ -410,15 +431,15 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
     ''')
     
     tradeline_summary_installment_query = text('''
-                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE AccountType !="Credit Card" AND open = "Yes" AND date(LastPaymentDate) >= date("now","-12 months")
+                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE AccountType !="Credit Card" AND AccountStatus = "Current Account" AND date(LastPaymentDate) >= date("now","-12 months")
                                    AND person_id = :person_id
                                    ''')
     tradeline_summary_open_query = text('''
-                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE open = "Yes" AND date(LastPaymentDate) >= date("now","-12 months")
+                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE AccountStatus = "Current Account" AND date(LastPaymentDate) >= date("now","-12 months")
                                    AND person_id = :person_id
                                    ''')
     tradeline_summary_close_query = text('''
-                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE open = "No" AND date(LastPaymentDate) >= date("now","-12 months")
+                                   SELECT COUNT(distinct Balance),SUM(distinct Balance),SUM(distinct PastDueAmount),SUM(distinct HighCredit), SUM(distinct CreditLimit) FROM RetailAccountDetails WHERE AccountStatus = "Closed Account" AND date(LastPaymentDate) >= date("now","-12 months")
                                    AND person_id = :person_id
                                    ''')
 
@@ -458,7 +479,7 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
     #Score Summary
     active_accounts = [row[0] for row in active_accounts_data]
     active_account_count = len(active_accounts)
-    summary_data = summary_data
+    # summary_data = summary_data
     enquiries_data = enquiries_data
     credit_score = int(credit_score[0]) if credit_score else 0
 
@@ -502,11 +523,11 @@ async def get_combined_account_info(person_id: str, db: AsyncSession = Depends(g
             credit_limit=close_data[4] if close_data[4] else 0
         ),
         tradeline_summary_total=tradeline(
-            count=close_data[0] if close_data[0] else 0 + open_data[0] if open_data[0] else 0,
-            balance=close_data[1] if close_data[1] else 0 + open_data[1] if open_data[1] else 0,
-            past_due=close_data[2] if close_data[2] else 0 + open_data[2] if open_data[2] else 0,
-            high_credit=close_data[3] if close_data[3] else 0 + open_data[3] if open_data[3] else 0,
-            credit_limit=close_data[4] if close_data[4] else 0 + open_data[4] if open_data[4] else 0
+            count = open_data[0] if open_data[0] else 0,
+            balance = open_data[1] if open_data[1] else 0,
+            past_due = open_data[2] if open_data[2] else 0,
+            high_credit = open_data[3] if open_data[3] else 0,
+            credit_limit = open_data[4] if open_data[4] else 0
         ),
         phone_numbers=phone_data,
         email_addresses=email_data,
@@ -542,7 +563,7 @@ class IncomeSummaryResponse(SQLModel):
     number_of_personal_savings_account: int
     number_of_business_income_accounts: int
     number_of_overseas_acount: int
-    
+    red_flag: int
     total_number_of_income_sources: int
     total_salary_received: float
     total_other_income: float
@@ -558,6 +579,9 @@ class IncomeSummaryResponse(SQLModel):
     income_percentage: dict
     income_score_percentage: int
     income_score_text: str
+    highlights: List[str]
+    income_highlights: List[str]
+    distribution_highlights: List[str]
     
 def convert_date_format(date_str):
     month_mapping = {
@@ -643,63 +667,112 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     """)
 
     
-    monthly_income_query = text("""
+    # monthly_income_query = text("""
+    #     SELECT 
+    #         strftime('%Y-%m', formatted_date) as month_year,
+    #         (CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as salary_amount,
+    #         (SUM(CASE 
+    #             WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
+    #             THEN 
+    #                 CASE 
+    #                     WHEN "A2(section_1)" IN ('206CA', '206CE', '206CJ', '206CL', '206CN') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+    #                     WHEN "A2(section_1)" IN ('206CK', '206CM') AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01 > 200000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+    #                     WHEN "A2(section_1)" IN ('206CB', '206CC','206CD') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.025
+    #                     WHEN "A2(section_1)" IN ('206CF', '206CG','206CH') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.02
+    #                     WHEN "A2(section_1)" = '206CI' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.05
+    #                     WHEN "A2(section_1)" = '206CR' AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001 > 5000000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001
+    #                     ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+    #                 END
+    #         END))as other_income_amount,
+    #         (SUM(CASE 
+    #             WHEN "A2(section_1)" IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O')
+    #             THEN
+    #                 CASE
+    #                     WHEN "A2(section_1)" = '206CN' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
+    #                     ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+    #                 END
+    #         END)) as business_income_amount,
+	# 		(SUM(CASE 
+    #             WHEN "A2(section_1)" IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD')
+    #             THEN
+    #                 CASE
+    #                     WHEN "A2(section_1)" = '192A' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.1
+    #                     ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
+    #                 END
+    #         END)) AS total_personal_income
+	# 			FROM (
+    #         SELECT 
+    #             CASE
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Jan' THEN substr("A3(transaction_dt)", 8, 4) || '-01-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Feb' THEN substr("A3(transaction_dt)", 8, 4) || '-02-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Mar' THEN substr("A3(transaction_dt)", 8, 4) || '-03-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Apr' THEN substr("A3(transaction_dt)", 8, 4) || '-04-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'May' THEN substr("A3(transaction_dt)", 8, 4) || '-05-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Jun' THEN substr("A3(transaction_dt)", 8, 4) || '-06-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Jul' THEN substr("A3(transaction_dt)", 8, 4) || '-07-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Aug' THEN substr("A3(transaction_dt)", 8, 4) || '-08-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Sep' THEN substr("A3(transaction_dt)", 8, 4) || '-09-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Oct' THEN substr("A3(transaction_dt)", 8, 4) || '-10-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Nov' THEN substr("A3(transaction_dt)", 8, 4) || '-11-' || substr("A3(transaction_dt)", 1, 2)
+    #                 WHEN substr("A3(transaction_dt)", 4, 3) = 'Dec' THEN substr("A3(transaction_dt)", 8, 4) || '-12-' || substr("A3(transaction_dt)", 1, 2)
+    #             END as formatted_date,
+    #             "A2(section_1)",
+    #             "A7(paid_credited_amt)"
+    #         FROM "26as_details"
+    #         WHERE person_id = :person_id
+    #         AND strftime('%Y-%m-%d', formatted_date) >= strftime('%Y-%m-%d', 'now', '-12 months')
+    #     ) 
+    #     GROUP BY strftime('%Y-%m', formatted_date)
+    # """)
+    monthly_income_query = text("""SELECT
+    strftime('%Y-%m', formatted_date) AS month_year,
+    SUM(salary_amount) AS total_salary_amount,
+    SUM(other_income_amount) AS total_other_income_amount,
+    SUM(business_income_amount) AS total_business_income_amount,
+    SUM(personal_income_amount) AS total_personal_income_amount
+FROM (
+    SELECT 
+        formatted_date,
+        CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END AS salary_amount,
+        CASE 
+            WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
+            THEN CAST("A7(paid_credited_amt)" AS FLOAT)
+            ELSE 0 END AS other_income_amount,
+        CASE 
+            WHEN "A2(section_1)" IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O')
+            THEN CAST("A7(paid_credited_amt)" AS FLOAT)
+            ELSE 0 END AS business_income_amount,
+        CASE 
+            WHEN "A2(section_1)" IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD')
+            THEN CAST("A7(paid_credited_amt)" AS FLOAT)
+            ELSE 0 END AS personal_income_amount
+    FROM (
         SELECT 
-            strftime('%Y-%m', formatted_date) as month_year,
-            (CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) ELSE 0 END) as salary_amount,
-            (SUM(CASE 
-                WHEN "A2(section_1)" IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') 
-                THEN 
-                    CASE 
-                        WHEN "A2(section_1)" IN ('206CA', '206CE', '206CJ', '206CL', '206CN') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
-                        WHEN "A2(section_1)" IN ('206CK', '206CM') AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01 > 200000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
-                        WHEN "A2(section_1)" IN ('206CB', '206CC','206CD') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.025
-                        WHEN "A2(section_1)" IN ('206CF', '206CG','206CH') THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.02
-                        WHEN "A2(section_1)" = '206CI' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.05
-                        WHEN "A2(section_1)" = '206CR' AND CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001 > 5000000 THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.001
-                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
-                    END
-            END))as other_income_amount,
-            (SUM(CASE 
-                WHEN "A2(section_1)" IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O')
-                THEN
-                    CASE
-                        WHEN "A2(section_1)" = '206CN' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.01
-                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
-                    END
-            END)) as business_income_amount,
-			(SUM(CASE 
-                WHEN "A2(section_1)" IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD')
-                THEN
-                    CASE
-                        WHEN "A2(section_1)" = '192A' THEN CAST("A7(paid_credited_amt)" AS FLOAT) / 0.1
-                        ELSE CAST("A7(paid_credited_amt)" AS FLOAT)
-                    END
-            END)) AS total_personal_income
-				FROM (
-            SELECT 
-                CASE
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Jan' THEN substr("A3(transaction_dt)", 8, 4) || '-01-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Feb' THEN substr("A3(transaction_dt)", 8, 4) || '-02-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Mar' THEN substr("A3(transaction_dt)", 8, 4) || '-03-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Apr' THEN substr("A3(transaction_dt)", 8, 4) || '-04-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'May' THEN substr("A3(transaction_dt)", 8, 4) || '-05-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Jun' THEN substr("A3(transaction_dt)", 8, 4) || '-06-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Jul' THEN substr("A3(transaction_dt)", 8, 4) || '-07-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Aug' THEN substr("A3(transaction_dt)", 8, 4) || '-08-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Sep' THEN substr("A3(transaction_dt)", 8, 4) || '-09-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Oct' THEN substr("A3(transaction_dt)", 8, 4) || '-10-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Nov' THEN substr("A3(transaction_dt)", 8, 4) || '-11-' || substr("A3(transaction_dt)", 1, 2)
-                    WHEN substr("A3(transaction_dt)", 4, 3) = 'Dec' THEN substr("A3(transaction_dt)", 8, 4) || '-12-' || substr("A3(transaction_dt)", 1, 2)
-                END as formatted_date,
-                "A2(section_1)",
-                "A7(paid_credited_amt)"
-            FROM "26as_details"
-            WHERE person_id = "1"
-            AND strftime('%Y-%m-%d', formatted_date) >= strftime('%Y-%m-%d', 'now', '-12 months')
-        ) 
-        GROUP BY strftime('%Y-%m', formatted_date)
-    """)
+            CASE
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Jan' THEN substr("A3(transaction_dt)", 8, 4) || '-01-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Feb' THEN substr("A3(transaction_dt)", 8, 4) || '-02-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Mar' THEN substr("A3(transaction_dt)", 8, 4) || '-03-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Apr' THEN substr("A3(transaction_dt)", 8, 4) || '-04-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'May' THEN substr("A3(transaction_dt)", 8, 4) || '-05-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Jun' THEN substr("A3(transaction_dt)", 8, 4) || '-06-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Jul' THEN substr("A3(transaction_dt)", 8, 4) || '-07-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Aug' THEN substr("A3(transaction_dt)", 8, 4) || '-08-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Sep' THEN substr("A3(transaction_dt)", 8, 4) || '-09-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Oct' THEN substr("A3(transaction_dt)", 8, 4) || '-10-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Nov' THEN substr("A3(transaction_dt)", 8, 4) || '-11-' || substr("A3(transaction_dt)", 1, 2)
+                WHEN substr("A3(transaction_dt)", 4, 3) = 'Dec' THEN substr("A3(transaction_dt)", 8, 4) || '-12-' || substr("A3(transaction_dt)", 1, 2)
+            END as formatted_date,
+            "A2(section_1)",
+            "A7(paid_credited_amt)"
+        FROM "26as_details"
+        WHERE person_id = :person_id
+        AND formatted_date >= strftime('%Y-%m-%d', 'now', 'start of month', '-12 months')
+        AND formatted_date < strftime('%Y-%m-%d', 'now', 'start of month')
+    ) 
+) GROUPED_INCOMES
+GROUP BY month_year
+ORDER BY month_year""")
+
     
     detA_query = text("""
                       SELECT distinct TA,"3A" FROM "26as_details" WHERE deductor_tan_no like "det%" AND person_id = :person_id
@@ -711,8 +784,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     detA={}
     for element in detA_raw_data:
         detA[element[0]]=element[1]
-    
-    
+        
     
     overseas_income_query = text("""
     SELECT 
@@ -721,7 +793,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
             WHEN B2 = '206CQ' OR B2 = '206CO' THEN 
                 CASE 
                     WHEN CAST(B7 AS FLOAT) / 0.05 <= 700000 THEN CAST(B7 AS FLOAT) / 0.05
-                    ELSE CAST(B7 AS FLOAT) / 0.20
+                    ELSE CAST(B7 AS FLOAT) / 0.10
                 END
             ELSE 0 END) as overseas_income_amount,
         deductor_tan_no
@@ -754,14 +826,18 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     
     overseas_income_result = await db.execute(overseas_income_query, {"person_id": person_id, "source": "206CQ"})
     overseas_income_raw_data = overseas_income_result.fetchall()
-
+    logger.debug(f"OVERSEAR INCOME: {overseas_income_raw_data}")
     
     
     # Process overseas income data
     overseas_income_sources = []
     monthly_overseas_income = {}
+    first_flag = True
     for row in overseas_income_raw_data:
         month_year, amount, source = row
+        if first_flag:
+            amount += 700000
+            first_flag = False
         if detA.get(source[4:]) is not None:
             overseas_income_sources.append(detA.get(source[4:])+" {"+source[4:]+"}")
         else:
@@ -788,7 +864,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
 
     # Fetch and process monthly income results
     monthly_income_raw_data = monthly_income_result.fetchall()
-
+    logger.debug(f"Monthly income: {monthly_income_raw_data}")
     monthly_income_details = [
     MonthlyIncome(
         month=row[0],
@@ -806,8 +882,13 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     monthly_income_details.reverse()
     #Added for overseas
     total_overseas_income = 0.0
+    first_flag = True
     for income_detail in monthly_income_details:
-        income_detail.overseas_income_amount = monthly_overseas_income.get(income_detail.month, 0.0)
+        if first_flag and monthly_overseas_income.get(income_detail.month, 0.0):
+            income_detail.overseas_income_amount = monthly_overseas_income.get(income_detail.month, 0.0) + 700000
+            first_flag = False
+        else:
+            income_detail.overseas_income_amount = monthly_overseas_income.get(income_detail.month, 0.0)
         total_overseas_income += monthly_overseas_income.get(income_detail.month, 0.0)
         income_detail.total_income_amount = income_detail.salary_amount + income_detail.other_income_amount + income_detail.overseas_income_amount + income_detail.business_income_amount + income_detail.personal_income_amount
 
@@ -831,7 +912,7 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
 
     result = await db.execute(query, {"person_id": person_id})
     summary = result.fetchone()
-    
+    logger.debug(f"SUMMARY: {summary}")
     salary_accounts = summary[0]
     other_income_accounts = summary[1]
     business_income_accounts = summary[2]
@@ -883,11 +964,11 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
     personal_income_percentage = (total_personal_income / total_income * 100) if total_income > 0 else 0
 
     income_percentage = {
-        "salary_percentage": salary_percentage,
-        "other_income_percentage": other_income_percentage,
-        "overseas_income_percentage": overseas_income_percentage,
-        "business_income_percentage": business_income_percentage,
-        "personal_income_percentage": personal_income_percentage
+        "salary_percentage": round(salary_percentage),
+        "other_income_percentage": round(other_income_percentage),
+        "overseas_income_percentage": round(overseas_income_percentage),
+        "business_income_percentage": round(business_income_percentage),
+        "personal_income_percentage": round(personal_income_percentage)
     }
 
     income_score_percentage=max(0,100- 2*(other_income_accounts))-10*(len(overseas_income_sources)+business_income_accounts)
@@ -899,7 +980,111 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         income_score_text="Concern"
     else:
         income_score_text="Bad"
+    
+    total_number_of_income_sources=salary_accounts + other_income_accounts + business_income_accounts +len(overseas_income_sources)+personal_income_accounts
+    
+    highlights =[]
+    
+    highlights.append(f"Total {total_number_of_income_sources} income sources were identified in tht last 12 months")
+    
+    if business_income_accounts > 0:
+        highlights.append(f"{business_income_accounts} Business income sources contributing {round(business_income_percentage)}% of the total income (Red Flag)")
+    if other_income_accounts > 0:
+        highlights.append(f"{other_income_accounts} Other income sources contributing {round(other_income_percentage)}% of the total income (Red Flag)")
+    if personal_income_accounts > 0:
+        highlights.append(f"{personal_income_accounts} Personal income sources contributing {round(personal_income_percentage)}% of the total income (Red Flag)")
+    if len(overseas_income_sources) > 0:
+        highlights.append(f"{len(overseas_income_sources)} Overseas income sources contributing {round(overseas_income_percentage)}% of the total income (Red Flag)")
+    
+    income_highlights = []
+    if business_income_percentage + overseas_income_percentage >5:
+        income_highlights.append(f"Additional income is available from other businesses. Since this income is more than 5% of the overall income, it should be declared.")
+    elif (business_income_percentage>0 or overseas_income_percentage>0) and business_income_percentage + overseas_income_percentage <=5:
+        income_highlights.append(f"Additional income is available from other businesses. But this income is less than or equal to 5% of the overall income.")
+    elif  business_income_percentage<=0 and overseas_income_percentage<=0:
+        income_highlights.append(f"No additional income is available from other businesses.")
+        
+    if business_income_percentage>salary_percentage:
+        income_highlights.append(f"Business income is more than the Salary. This could lead to the candidate paying more attention to the additional income sources.")
+    else:
+        income_highlights.append(f"Salary income is more than the Business income. This has lesser chances of the candidate paying attention to the additional income sources.")
+    if salary_percentage<50:
+        income_highlights.append(f"Salary seems to be less than 50% of the candidate's income. Financial needs from Salary income does not sufficiently met. This could be a reason for future attrition.")
+    else:
+        income_highlights.append(f"Salary seems to be more than 50% of the candidate's income. Financial needs from Salary income sufficiently met.")
+    
+    summary_messages = []
+    
+    for i in range(1, len(monthly_income_raw_data)):
+        current_month, current_salary_income, current_other_income, current_business_income, current_personal_income = monthly_income_raw_data[i]
+        current_overseas_income = monthly_overseas_income.get(current_month, 0.0)
+        previous_month,previous_salary_income, previous_other_income, previous_business_income,previous_personal_income= monthly_income_raw_data[i - 1]
+        previous_overseas_income = monthly_overseas_income.get(previous_month, 0.0)
+        previous_business_income = previous_business_income if previous_business_income is not None else 0
+        previous_other_income = previous_other_income if previous_other_income is not None else 0 
+        previous_personal_income = previous_personal_income if previous_personal_income is not None else 0
+        previous_overseas_income = previous_overseas_income if previous_overseas_income is not None else 0
+        current_business_income = current_business_income if current_business_income is not None else 0
+        current_other_income = current_other_income if current_other_income is not None else 0
+        current_overseas_income = current_overseas_income if current_overseas_income is not None else 0
+        current_personal_income = current_personal_income if current_personal_income is not None else 0
+        previous_income, current_income = previous_business_income + previous_other_income +previous_personal_income +previous_overseas_income , current_business_income+current_other_income+current_overseas_income+current_personal_income 
+    
+        if previous_income == 0:
+            growth_percentage = float('inf')  
+        else:
+            growth_percentage = ((current_income - previous_income) / previous_income) * 100
+
+        if growth_percentage > 200:
+            summary_messages.append(f"{current_month} saw more than {growth_percentage:.2f}% growth")
             
+        if previous_business_income == 0:
+            business_growth_percentage = 0 
+        else:
+            business_growth_percentage = ((current_business_income - previous_business_income) / previous_business_income) * 100
+
+        if previous_personal_income == 0:
+            personal_growth_percentage = 0
+        else:
+            personal_growth_percentage = ((current_personal_income - previous_personal_income) / previous_personal_income) * 100
+
+        if previous_other_income == 0:
+            other_growth_percentage = 0  
+        else:
+            other_growth_percentage = ((current_other_income - previous_other_income) / previous_other_income) * 100
+
+        if previous_overseas_income == 0:
+            overseas_growth_percentage = 0
+        else:
+            overseas_growth_percentage = ((current_overseas_income - previous_overseas_income) / previous_overseas_income) * 100
+
+
+
+    summary_line = ", ".join(summary_messages) if len(summary_messages)>0 else "" 
+    
+    distribution_highlights = []
+    
+    if salary_accounts == 1 :
+        if len(summary_line) > 0:
+            distribution_highlights.append(f"Salary came from {salary_accounts} source (TBD). Month over month, salary payments are consistent.{summary_line}  compared to the respective previous month")
+        else:
+            distribution_highlights.append(f"Salary came from {salary_accounts} source (TBD). Month over month, salary payments are consistent.")
+    elif salary_accounts >1:
+        if len(summary_line) > 0:
+            distribution_highlights.append(f"Salary came from {salary_accounts} sources (TBD). Month over month, salary payments are consistent.{summary_line} compared to the respective previous month")
+        else:
+            distribution_highlights.append(f"Salary came from {salary_accounts} sources (TBD). Month over month, salary payments are consistent.")
+    
+    if business_growth_percentage > 0:
+        distribution_highlights.append("Business income has a growing trend month-over-month. This could lead to drop in performance")
+    if overseas_growth_percentage > 0:
+        distribution_highlights.append("Overseas income has a growing trend month-over-month. This could lead to drop in performance")
+    if personal_growth_percentage > 0:
+        distribution_highlights.append("Personal income has a growing trend month-over-month. This could lead to drop in performance")
+    if other_growth_percentage > 0:
+        distribution_highlights.append("Other income has a growing trend month-over-month. This could lead to drop in performance")
+      
+    
     return IncomeSummaryResponse(
         number_of_salary_accounts=salary_accounts,
         #number_of_salary_accounts=len(salary_sources),
@@ -909,7 +1094,8 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         number_of_business_income_accounts=business_income_accounts,
         number_of_personal_savings_account=personal_income_accounts,
         number_of_overseas_acount = len(overseas_income_sources),
-        total_number_of_income_sources=salary_accounts + other_income_accounts + business_income_accounts +len(overseas_income_sources)+personal_income_accounts,
+        total_number_of_income_sources=total_number_of_income_sources,
+        red_flag = other_income_accounts + business_income_accounts + personal_income_accounts + len(overseas_income_sources),
         total_salary_received=total_salary,
         total_other_income=total_other_income,
         total_business_income=total_business_income,
@@ -922,10 +1108,13 @@ async def get_income_summary(person_id: str, db: AsyncSession = Depends(get_db))
         # overseas_income_amount=sum(monthly_overseas_income.values()),
         income_percentage=income_percentage,
         income_score_percentage=income_score_percentage,
-        income_score_text=income_score_text
+        income_score_text=income_score_text,
+        highlights = highlights,
+        income_highlights = income_highlights,
+        distribution_highlights = distribution_highlights
     )
 
  
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run('app:app', host='0.0.0.0', port=8080, reload=True)
+# if __name__ == '__main__':
+#     import uvicorn
+#     uvicorn.run('app:app', host='0.0.0.0', port=8080, reload=True)

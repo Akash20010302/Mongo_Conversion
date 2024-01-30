@@ -1,4 +1,5 @@
 import datetime
+import traceback
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
@@ -14,6 +15,7 @@ from repos.share_repos import get_share_list
 from tools.email_tools import get_email_body, send_share_email
 from tools.encrypter_tools import decrypt, encrypt
 from db.db import session
+from sqlalchemy.exc import PendingRollbackError
 
 share_router = APIRouter()
 auth_handler = AuthHandler()
@@ -73,6 +75,10 @@ async def send_report(share: ShareEmail):
 
 @share_router.get("/check_shared/{key}", tags=['Share'])
 async def check_share(key: str):
+    class InvalidToken(Exception):
+        def __init__(self, message="Invalid Token"):
+            self.message = message
+            super().__init__(self.message)
     class ExpiryException(Exception):
         def __init__(self, message="View Expired"):
             self.message = message
@@ -84,19 +90,20 @@ async def check_share(key: str):
     try:
         data = await decrypt(key)
         share_found= session.get(Share,data["id"])
+        # logger.debug(f'''{data.get("id")}''')
         if share_found is not None:
             appl_found = session.get(ApplicationList,share_found.appid)
             if appl_found is not None:
                 #logger.debug(share_found)
                 if share_found.expiry>= datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Active":
                     share_found.lastlogin=datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30)
-                    session.add(share_found)
+                    session.merge(share_found)
                     session.commit()
                     session.refresh(share_found)
                     return JSONResponse(status_code=HTTP_200_OK,content={"id":share_found.formid, "candidatetype":appl_found.candidatetype})
                 elif share_found.expiry< datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Active":
                     share_found.status="Expired"
-                    session.add(share_found)
+                    session.merge(share_found)
                     session.commit()
                     raise ExpiryException
                 elif share_found.expiry< datetime.datetime.utcnow() + datetime.timedelta(hours=5,minutes=30) and share_found.status=="Expired":
@@ -107,6 +114,12 @@ async def check_share(key: str):
                 raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Application not found")
         else:
             raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Share not found")
+    except PendingRollbackError as pre:
+        session.rollback()
+        await check_share(key)
+    except InvalidToken as ie:
+        logger.debug(traceback.format_exc())
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Invalid Key.")
     except HTTPException as ht:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Share not found")
     except ExpiryException as ex:
@@ -114,7 +127,7 @@ async def check_share(key: str):
     except TerminatedException as tx:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Report Has Been Stopped Sharing.")
     except Exception as e:
-        #logger.debug(e)
+        logger.debug(traceback.format_exc())
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Invalid Key.")
 
 @share_router.put("/shared/stop_share",response_model=str, tags=['Share'])
@@ -144,26 +157,30 @@ async def reshare(id: ReShare):
 
 @share_router.get(f"/shared/get-list", tags=['Share'])
 async def get_share(user=Depends(auth_handler.get_current_admin)):
-    if user.role not in ['Super Admin','Admin']:
-        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Unauthorized Access")
-    if user.role == "Super Admin":
-        share_list = await get_share_list()
-        if share_list is not None:
-            return share_list
+    try:
+        if user.role not in ['Super Admin','Admin']:
+            raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Unauthorized Access")
+        if user.role == "Super Admin":
+            share_list = await get_share_list()
+            if share_list is not None:
+                return share_list
+            else:
+                raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Nothing Shared")
+        elif user.role == "Admin":
+            comcanlist_found = await select_all_candidatesid_filtered(user.companyid)
+            if comcanlist_found is None or len(comcanlist_found)<0:
+                raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="No Candidate Present.")
+            appl_list =await select_all_appid(comcanlist_found)
+            if appl_list is None or len(appl_list)<0:
+                raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="No Application Present.")
+            #logger.debug(appl_list)
+            share_list = await get_share_list(appl_list)
+            if share_list is not None:
+                return share_list
+            else:
+                raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Nothing Shared")
         else:
-            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Nothing Shared")
-    elif user.role == "Admin":
-        comcanlist_found = await select_all_candidatesid_filtered(user.companyid)
-        if comcanlist_found is None or len(comcanlist_found)<0:
-            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="No Candidate Present.")
-        appl_list =await select_all_appid(comcanlist_found)
-        if appl_list is None or len(appl_list)<0:
-            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="No Application Present.")
-        #logger.debug(appl_list)
-        share_list = await get_share_list(appl_list)
-        if share_list is not None:
-            return share_list
-        else:
-            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Nothing Shared")
-    else:
-        raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Unknown Error")
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Unknown Error")
+    except PendingRollbackError as pre:
+        session.rollback()
+        await get_share()
