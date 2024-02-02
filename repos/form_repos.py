@@ -1,12 +1,11 @@
 from loguru import logger
 from sqlmodel import Session, select
-from db.db import engine
 from models.Form import Form
 from models.Tenure import Tenure
 from repos.application_repos import get_company_name
 from repos.kyc_repos import find_kyc
 
-async def convert_to_basic_info(res,res2):
+def convert_to_basic_info(res,res2,session):
     if res.report is not None:
         if res2 is not None and len(res2)>0:
             s = {
@@ -21,7 +20,7 @@ async def convert_to_basic_info(res,res2):
                 "city" : res.city,
                 "role" : (max(res2, key=lambda x: x.to_date)).role,
                 "company" : (max(res2, key=lambda x: x.to_date)).company,
-                "legalname" : await get_company_name(res.id),
+                "legalname" : get_company_name(res.id,session),
                 "report_date" : res.report
             }
         else:
@@ -37,7 +36,7 @@ async def convert_to_basic_info(res,res2):
                 "city" : res.city,
                 "role" : "N/A",
                 "company" : "N/A",
-                "legalname" : await get_company_name(res.id),
+                "legalname" : get_company_name(res.id,session),
                 "report_date" : res.report
             }
     else:
@@ -54,7 +53,7 @@ async def convert_to_basic_info(res,res2):
                 "city" : res.city,
                 "role" : (max(res2, key=lambda x: x.to_date)).role,
                 "company" : (max(res2, key=lambda x: x.to_date)).company,
-                "legalname" : await get_company_name(res.id)
+                "legalname" : get_company_name(res.id,session)
             }
         else:
             s = {
@@ -69,7 +68,7 @@ async def convert_to_basic_info(res,res2):
                 "city" : res.city,
                 "role" : "N/A",
                 "company" : "N/A",
-                "legalname" : await get_company_name(res.id)
+                "legalname" : get_company_name(res.id,session)
             }
     return s
 
@@ -88,21 +87,19 @@ async def convert_to_identification(res):
     }
     return s
 
-async def get_basic_info(id):
-    with Session(engine) as session:
-        statement = select(Form).where(Form.id == id, Form.isDeleted == False)
-        res = session.exec(statement).first()
-        statement = select(Tenure).where(Tenure.formid == id, Tenure.isDeleted == False)
-        res2 = session.exec(statement).all()
-        if res is not None and res2 is not None:
-            res = await convert_to_basic_info(res,res2)
-        return res
+def get_basic_info(id:int, session:Session):
+    statement = select(Form).where(Form.id == id, Form.isDeleted == False)
+    res = session.exec(statement).first()
+    statement = select(Tenure).where(Tenure.formid == id, Tenure.isDeleted == False)
+    res2 = session.exec(statement).all()
+    if res is not None and res2 is not None:
+        res = convert_to_basic_info(res,res2,session)
+    return res
     
-async def get_identification(id):
-    with Session(engine) as session:
-        statement = select(Form).where(Form.id == id, Form.isDeleted == False)
-        res = session.exec(statement).first()
-        if res is not None:
-            # logger.debug(f"RES: {res}")
-            res = await convert_to_identification(res)
-        return res
+async def get_identification(id:int, session:Session):
+    statement = select(Form).where(Form.id == id, Form.isDeleted == False)
+    res = session.exec(statement).first()
+    if res is not None:
+        # logger.debug(f"RES: {res}")
+        res = await convert_to_identification(res)
+    return res

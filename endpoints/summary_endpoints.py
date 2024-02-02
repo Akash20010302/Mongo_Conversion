@@ -1,13 +1,15 @@
 from collections import defaultdict
 import datetime
 import statistics
+
+from sqlmodel import Session
 from async_sessions.sessions import AsyncSessionLocal, AsyncSessionLocal_backend, get_db, get_db_backend
 from fastapi import APIRouter, HTTPException,Depends
 from loguru import logger
-from db.db import session
 from starlette.status import HTTP_400_BAD_REQUEST
 from sqlalchemy.sql import text
 from auth.auth import AuthHandler
+from db.db import get_db_db
 from endpoints.career_endpoints import get_career_summary
 from endpoints.contact_endpoints import get_combined_info
 from endpoints.identification_endpoints import iden_info
@@ -27,9 +29,9 @@ summary_router = APIRouter()
 auth_handler = AuthHandler()
 
 @summary_router.get("/basic-info/{id}", response_model=SummaryBasicInfo,tags=['Summary'])
-async def basic_info(id:int):
+async def basic_info(id:int,session: Session = Depends(get_db_db)):
     try:
-        basic = await get_basic_info(id)
+        basic = get_basic_info(id,session)
         #logger.debug(basic)
         basic = SummaryBasicInfo(**basic)
         return basic
@@ -38,12 +40,12 @@ async def basic_info(id:int):
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="No Records Found.")
 
 @summary_router.get("/application-journey/{id}", tags=['Summary'])
-async def journey_info(id:int):
-    session.rollback()
-    session.commit()
+async def journey_info(id:int,session: Session = Depends(get_db_db)):
+    # session.rollback()
+    # session.commit()
     #from 45-49
     form = session.get(Form,id)
-    appl = await find_application(id)
+    appl = find_application(id,session)
     if form.report is None :
         return {"application_initiated":appl.createddate,"application_completed":form.formcompletiondate,"report_generated":"Under Progress","form_initiation_to_complete":(form.formcompletiondate - appl.createddate).days}
     return {"application_initiated":appl.createddate,"application_completed":form.formcompletiondate,"report_generated":form.report,"form_initiation_to_complete":(form.formcompletiondate - appl.createddate).days,"form_complete_to_report":(form.report - form.formcompletiondate).days}
@@ -169,7 +171,7 @@ async def journey_info(id:int):
 
 
 @summary_router.get("/summary_details/{person_id}",response_model=Summary, tags=['Summary'])
-async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backend: AsyncSessionLocal_backend = Depends(get_db_backend)):
+async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backend: AsyncSessionLocal_backend = Depends(get_db_backend), session: Session = Depends(get_db_db)):
     query = text("""
         SELECT
             SUM(CASE WHEN "A2(section_1)" LIKE '192%' THEN CAST("A7(paid_credited_amt)" AS FLOAT) END) AS total_salary,
@@ -315,18 +317,19 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     
     result = await db.execute(query, {"person_id": person_id})
     passbook_raw_data = result.fetchall()
-    
+    logger.debug(passbook_raw_data)
     company_data = defaultdict(list)
-    for exp in passbook_raw_data:
-        company_name = exp[0]
-        year = exp[1]
-        month = exp[2]
+    if len(passbook_raw_data):
+        for exp in passbook_raw_data:
+            company_name = exp[0]
+            year = exp[1]
+            month = exp[2]
 
-        date = await convert_to_datetime(year,month) 
-        if date:
-            company_data[company_name].append(date)
-        else:
-            company_data[company_name].append("N/A")
+            date = await convert_to_datetime(year,month) 
+            if date:
+                company_data[company_name].append(date)
+            else:
+                company_data[company_name].append("N/A")
             
     work_exp = []
     overlapping_durations=[]
@@ -334,54 +337,58 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     duration = []
     flag = False
     companies_without_dates = []
-    
-    for company_name, dates in company_data.items():
-        if dates != ["N/A"]:
-            # Parse the start and end dates into datetime objects
-            start_date = min(dates)
-            end_date = max(dates)
-            start_date_formatted = start_date.strftime("%m-%d-%Y")
-            end_date_formatted = end_date.strftime("%m-%d-%Y")
-            
-            # Calculate the difference in months
-            total_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-            
-            # Append the data to work_exp with the new "totalMonth" key
-            work_exp.append(
-                {
-                    "company_name": company_name, 
-                    "start_date": start_date_formatted, 
-                    "end_date": end_date_formatted,
-                    "totalMonth": total_months,  
-                    "type": "work_exp"
-                }
-            )
-            duration.append(total_months)
-        else:
-            work_exp.append(
-                {
-                    "company_name": company_name, 
-                    "start_date": "N/A",
-                    "end_date": "N/A",
-                    "totalMonth": 0,
-                    "type":"work_exp"
+    if len(company_data):
+        for company_name, dates in company_data.items():
+            if dates != ["N/A"]:
+                # Parse the start and end dates into datetime objects
+                start_date = min(dates)
+                end_date = max(dates)
+                start_date_formatted = start_date.strftime("%m-%d-%Y")
+                end_date_formatted = end_date.strftime("%m-%d-%Y")
+                
+                # Calculate the difference in months
+                total_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+                
+                # Append the data to work_exp with the new "totalMonth" key
+                work_exp.append(
+                    {
+                        "company_name": company_name, 
+                        "start_date": start_date_formatted, 
+                        "end_date": end_date_formatted,
+                        "totalMonth": total_months,  
+                        "type": "work_exp"
                     }
                 )
-            flag = True
-            companies_without_dates.append(company_name)
-            
-            
-    total_duration = float(sum(duration)/12)
+                duration.append(total_months)
+            else:
+                work_exp.append(
+                    {
+                        "company_name": company_name, 
+                        "start_date": "N/A",
+                        "end_date": "N/A",
+                        "totalMonth": 0,
+                        "type":"work_exp"
+                        }
+                    )
+                flag = True
+                companies_without_dates.append(company_name)
+                
+    logger.debug(work_exp)
+    logger.debug(duration)
+    logger.debug(companies_without_dates)
+    total_duration = float(sum(duration)/12) if len(duration) else 0.0
     total_duration = round(total_duration, 0)
+    logger.debug(total_duration)
     #median_duration = statistics.median(duration)
     #average_duration = statistics.mean(duration)
-    if duration:
+    if len(duration):
         median_duration = int(statistics.median(duration))
         average_duration = int(statistics.mean(duration))
     else:
         median_duration = 0
         average_duration = 0
-    
+    logger.debug(median_duration)
+    logger.debug(average_duration)
     if average_duration < 15:
         risk_duration = "Very High"
     elif 15 <= average_duration < 35:
@@ -390,41 +397,47 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
         risk_duration = "Optimal"    
     else:
         risk_duration = "Low"
-        
-    for i, entry1 in enumerate(work_exp):
-        # if entry1["end_date"]!="N/A":
-        #     end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
-        if entry1["end_date"]!="N/A":
-            end_date1 = await convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])        
-
-            for entry2 in work_exp[i+1:]:
-                # if entry2["start_date"]!="N/A":
-                #     start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
-                if entry2["start_date"]!="N/A":
-                    start_date2 = await convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
-                    
-                    #overlapping
-                    
-                    if end_date1 > start_date2:
-                        start_date_dt = datetime.datetime.strptime(entry2["start_date"], "%m-%d-%Y")
-                        end_date_dt = datetime.datetime.strptime(entry1["end_date"], "%m-%d-%Y")
-                        total_months = (end_date_dt.year - start_date_dt.year) * 12 + (end_date_dt.month - start_date_dt.month)
-
-                        overlapping_durations.append({
-                        "company_name": entry2["company_name"],
-                        "start_date": entry2["start_date"],
-                        "end_date": entry1["end_date"],
-                        "totalMonth": total_months,
-                        "type":"overlap"
-                        })
-
-                    #gaps
-                    
-                    if end_date1 < start_date2:
-                        gap_start_date = (end_date1 + datetime.timedelta(days=1)).strftime("%m-%d-%Y")
-                        gap_end_date = (start_date2 - datetime.timedelta(days=1)).strftime("%m-%d-%Y")
-                        gaps.append({"start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
     
+    if len(work_exp):
+        for i, entry1 in enumerate(work_exp):
+            # if entry1["end_date"]!="N/A":
+            #     end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
+            if entry1["end_date"]!="N/A":
+                end_date1 = await convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])        
+
+                for entry2 in work_exp[i+1:]:
+                    # if entry2["start_date"]!="N/A":
+                    #     start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
+                    if entry2["start_date"]!="N/A":
+                        start_date2 = await convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
+                        
+                        #overlapping
+                        
+                        if end_date1 > start_date2:
+                            start_date_dt = datetime.datetime.strptime(entry2["start_date"], "%m-%d-%Y")
+                            end_date_dt = datetime.datetime.strptime(entry1["end_date"], "%m-%d-%Y")
+                            total_months = (end_date_dt.year - start_date_dt.year) * 12 + (end_date_dt.month - start_date_dt.month)
+
+                            overlapping_durations.append({
+                            "company_name": entry2["company_name"],
+                            "start_date": entry2["start_date"],
+                            "end_date": entry1["end_date"],
+                            "totalMonth": total_months,
+                            "type":"overlap"
+                            })
+
+                        #gaps
+                        
+                        if end_date1 < start_date2:
+                            end_date1_datetime = datetime.datetime.strptime(end_date1, "%m-%d-%Y")
+                            gap_start_date = (end_date1_datetime + datetime.timedelta(days=1)).strftime("%m-%d-%Y")
+                            
+                            start_date2_datetime = datetime.datetime.strptime(start_date2, "%m-%d-%Y")
+                            gap_end_date = (start_date2_datetime - datetime.timedelta(days=1)).strftime("%m-%d-%Y")
+                            gaps.append({"start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
+    
+    logger.debug(overlapping_durations)
+    logger.debug(gaps)              
     #tenure
     
     resume_query = text("""
@@ -439,7 +452,7 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     
     result = await db_backend.execute(resume_query, {"formid": person_id})
     resume_raw_data = result.fetchall()
-    
+    logger.debug(resume_raw_data)
     company_data = []
     for exp in resume_raw_data:
         company = exp[0]
@@ -464,7 +477,7 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
         
     overlapping_durations_tenure=[]
     gaps_tenure = []
-    
+    logger.debug(company_data)
     for i, entry1 in enumerate(company_data):
         end_date1 = entry1["end_date"]
         for entry2 in company_data[i+1:]:
@@ -478,32 +491,33 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
                         })
                 
             if end_date1 < start_date2:
-                gap_start_date = (end_date1 + datetime.timedelta(days=1)).strftime("%m-%d-%Y")
-                gap_end_date = (start_date2 - datetime.timedelta(days=1)).strftime("%m-%d-%Y")
+                end_date1_datetime = datetime.datetime.strptime(end_date1, "%m-%d-%Y")
+                gap_start_date = (end_date1_datetime + datetime.timedelta(days=1)).strftime("%m-%d-%Y")
+                
+                start_date2_datetime = datetime.datetime.strptime(start_date2, "%m-%d-%Y")
+                gap_end_date = (start_date2_datetime - datetime.timedelta(days=1)).strftime("%m-%d-%Y")
                 gaps_tenure.append({"start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
-
+    logger.debug(overlapping_durations_tenure)
+    logger.debug(gaps_tenure)
     #discrepancies
     
     overlapping_gaps = []
-    
-    for gap in gaps:
-        gap_start = gap["start_date"]
-        gap_end = gap["end_date"]
+    if len(gaps):
+        for gap in gaps:
+            gap_start = gap["start_date"]
+            gap_end = gap["end_date"]
 
-        for exp in company_data:
-            exp_start = exp["start_date"]
-            exp_end = exp["end_date"]
+            for exp in company_data:
+                exp_start = exp["start_date"]
+                exp_end = exp["end_date"]
 
-            if(await overlap(gap_start, gap_end, exp_start, exp_end)):
-                overlapping_gaps.append(gap)
-                break 
-    
+                if(await overlap(gap_start, gap_end, exp_start, exp_end)):
+                    overlapping_gaps.append(gap)
+                    break 
+        
     all_exp_govt_docs = work_exp + overlapping_durations + gaps
-    all_experiences_sorted_govt_docs = sorted(all_exp_govt_docs, key=lambda x: x.get("start_date", "N/A"))
-
-    #print(all_experiences_sorted)
+    
     all_exp_tenure = company_data + overlapping_durations_tenure + gaps_tenure
-    all_experiences_sorted_tenure = sorted(all_exp_tenure, key=lambda x: x.get("start_date", "N/A"))
     
     other_income_query = text("""
                                  SELECT COUNT(distinct "deductor_tan_no") AS NO_OF_SOURCE FROM "26as_details" WHERE "A2(section_1)" IN('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') AND person_id = :person_id
@@ -546,24 +560,25 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     discrepancies = len(overlapping_gaps)
     good_to_know = len(gaps)
     
-    for i in all_exp_govt_docs:
-        if i['start_date'] =='N/A' or i['end_date'] =='N/A':
-            for j in all_exp_tenure:
-                if fuzz.partial_ratio(i['company_name'],j['company_name']) >= 80:
-                    i['start_date'] , i['end_date'], i['totalMonth'] = j['start_date'], j['end_date'], j['totalMonth']
-                    flag = False
-                    if i['company_name'] in companies_without_dates:
-                        companies_without_dates.remove(i['company_name']) 
-                        
-    #final_exp_govt_docs = list(filter(lambda i: i['start_date'] != 'N/A' and i['end_date'] != 'N/A', all_exp_govt_docs))
-    
-    #Removing elements with "N/A" dates and checking if still "N/A" exists in multiple "N/A" cases
-    final_exp_govt_docs=[]
-    for i in all_exp_govt_docs:
-        if i['start_date'] != 'N/A' or i['end_date'] !='N/A':
-            final_exp_govt_docs.append(i)
-        else:
-            flag=True
+    if len(all_exp_govt_docs):
+        for i in all_exp_govt_docs:
+            if i['start_date'] =='N/A' or i['end_date'] =='N/A':
+                for j in all_exp_tenure:
+                    if fuzz.partial_ratio(i['company_name'],j['company_name']) >= 80:
+                        i['start_date'] , i['end_date'], i['totalMonth'] = j['start_date'], j['end_date'], j['totalMonth']
+                        flag = False
+                        if i['company_name'] in companies_without_dates:
+                            companies_without_dates.remove(i['company_name']) 
+                            
+        #final_exp_govt_docs = list(filter(lambda i: i['start_date'] != 'N/A' and i['end_date'] != 'N/A', all_exp_govt_docs))
+        
+        #Removing elements with "N/A" dates and checking if still "N/A" exists in multiple "N/A" cases
+        final_exp_govt_docs=[]
+        for i in all_exp_govt_docs:
+            if i['start_date'] != 'N/A' or i['end_date'] !='N/A':
+                final_exp_govt_docs.append(i)
+            else:
+                flag=True
     
     highlight = []
     if good_to_know == 0:
@@ -613,7 +628,7 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
         remark = "average"
     else:
         remark = "Long"                    
-    tenure_remarks = f"{name}’s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
+    tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
     
     exp_summary=ExperienceSummary(total_experience = total_duration,
     median_tenure=median_duration,
@@ -651,7 +666,7 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     currentctc = round(float(ctc_info[0]),0)
     offeredctc = round(float(ctc_info[2]),0)
 
-    offered_ctc_percentange = round(float((offeredctc/2800000)*100),0)
+    offered_ctc_percentange = round(float((offeredctc/4000000)*100),0)
     if offered_ctc_percentange < 50:
         output = "LOW"
     elif 50<= offered_ctc_percentange<75:
@@ -701,7 +716,9 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
         {"id": person_id}
     )
     pf_summary = pf_result.fetchone()
-    pf = pf_summary[0] if pf_summary[0] is not None else 0
+    pf = 0
+    if pf_summary:
+        pf = pf_summary[0] if pf_summary[0] is not None else 0
     differences = []
 
     for i in range(1, len(monthly_income_raw_data)):
@@ -775,8 +792,8 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     
     #response
     idealctc= Ideal_ctc(
-        lower=1200000,
-        upper=2800000
+        lower=800000,
+        upper=4000000
     )
     offered_ctc_summary= offered_past_ctc_summary(
         declared_past_ctc=currentctc,
@@ -1079,7 +1096,7 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     aadhar_text = None
     pan_text = None
 
-    temp = await iden_info(int(person_id))
+    temp = await iden_info(int(person_id),session)
     highlight = temp["Remarks"]
 
 # Check for Aadhar status

@@ -3,7 +3,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List
 from fastapi import HTTPException, status, Request
-from db.db import session
+from mysqlx import Session
 from models.Share import Share
 
 
@@ -48,7 +48,7 @@ async def send_share_email(to_email,subject,body)->bool:
     except Exception as ex:
         return False
 
-async def link_generator(id:int,name:str)->str:
+async def link_generator(id:int,name:str,session:Session)->str:
     share_found = session.get(Share,id)
     body = f'''
             <br><br><strong>{name}</strong><br>
@@ -59,10 +59,10 @@ async def link_generator(id:int,name:str)->str:
     return body
 
 
-async def get_email_body(email:dict,body:str)->str:
+async def get_email_body(email:dict,body:str,session:Session)->str:
     s='''<br><br>'''
     for x in email.keys():
-        s+=await link_generator(x,email[x])
+        s+=await link_generator(x,email[x],session=session)
     return body+s
     
        

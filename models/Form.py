@@ -65,6 +65,7 @@ class Form(SQLModel, table=True):
     Extracted_Aadhar_Number: Optional[str]
     Extracted_Pan_Number: Optional[str]
     report: Optional[datetime.datetime]
+    reset: Optional[bool] = False
     
     class Config:
         indexes = [Index("idx_form_appid", "appid"), Index("idx_form_id", "id")]

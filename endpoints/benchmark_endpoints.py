@@ -71,7 +71,7 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     highlight = f"CTC change reflects {ctc_growth[1]} CTC growth"    
         
 
-    offered_ctc_percentange = round(float((offeredctc/2800000)*100),0)
+    offered_ctc_percentange = round(float((offeredctc/4000000)*100),0)
     if offered_ctc_percentange < 50:
         output = [offered_ctc_percentange,"LOW"]
     elif 50<= offered_ctc_percentange<75:
@@ -99,8 +99,8 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
     name = firstname[0]
     #logger.debug("PASSED FIRST NAME")
     ##payanalysis
-    current_percentile =((currentctc-1200000)/(2800000-1200000))*100
-    offered_percentile =((offeredctc-1200000)/(2800000-1200000))*100
+    current_percentile =((currentctc-800000)/(4000000-800000))*100
+    offered_percentile =((offeredctc-800000)/(4000000-800000))*100
 ## to do-0-20= minor
 #20-30= moderate
 #30-50= major
@@ -299,8 +299,8 @@ async def get_ctc_info(id: int,  db_1: AsyncSession = Depends(get_db_backend), d
 #        remarks=expense_income_remark
 #    )
     idealctcband = IdealCtcBand(
-        lower=1200000,
-        upper=2800000
+        lower=800000,
+        upper=4000000
     )
     estimated_range = estimatedExpense(
         lower = new_decrease,

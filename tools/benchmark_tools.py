@@ -3,7 +3,7 @@ from datetime import datetime
 
 async def get_indicator(value: float) -> str:
     """Determine the indicator for the given value."""
-    x =((value-1200000)/(2800000-1200000))*100
+    x =((value-800000)/(4000000-800000))*100
     
     if x < 20:
         if x<=0:

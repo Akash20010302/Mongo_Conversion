@@ -1,15 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from models.Contact_Information import Address, Email, Index, Mobile, Name, contact_info
 from sqlalchemy.sql import text
-from db.db import session
 from async_sessions.sessions import get_db, get_db_backend
 from sqlalchemy.ext.asyncio import AsyncSession
 from tools.contact_tools import check_discrepancy, check_discrepancy_1, check_discrepancy_address
 
 contact_router = APIRouter()
-@contact_router.get("/sessionrollback",tags=['Contact Information'])
-async def rollback():
-    session.rollback()
 @contact_router.get("/contact_information/{id}", response_model=contact_info,tags=['Contact Information'])
 async def get_combined_info(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2: AsyncSession = Depends(get_db)):
     # Fetch data from the first database

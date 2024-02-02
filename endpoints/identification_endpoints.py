@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
+from sqlmodel import Session
 from starlette.status import HTTP_404_NOT_FOUND,HTTP_400_BAD_REQUEST
 from auth.auth import AuthHandler
+from db.db import get_db_db
 from repos.form_repos import get_identification
 from tools.file_manager import download_file_from_s3, encode_file_to_base64, parse_s3_url
 
@@ -9,9 +11,9 @@ identification_router = APIRouter()
 auth_handler = AuthHandler()
 
 @identification_router.get("/identification/{id}", tags=['Identification'])
-async def iden_info(id:int):
-    aadhardis = pandis =0
-    iden = await get_identification(id)
+async def iden_info(id:int, session: Session = Depends(get_db_db)):
+    aadhardis = pandis = 0
+    iden = await get_identification(id,session)
     logger.debug(f"IDEN: {iden}")
     if iden is None:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST,detail="Identification Detail Not Found")

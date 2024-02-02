@@ -5,6 +5,7 @@ from async_sessions.sessions import get_db, get_db_backend
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from fuzzywuzzy import fuzz
+from loguru import logger
 
 from models.Career import CareerDetailsResponse
 from tools.career_tools import convert_to_datetime, overlap
@@ -31,19 +32,20 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     
     result = await db.execute(query, {"person_id": person_id})
     passbook_raw_data = result.fetchall()
-    
+   
     company_data = defaultdict(list)
-    for exp in passbook_raw_data:
-        company_name = exp[0]
-        year = exp[1]
-        month = exp[2]
+    if len(passbook_raw_data):
+        for exp in passbook_raw_data:
+            company_name = exp[0]
+            year = exp[1]
+            month = exp[2]
 
-        date = await convert_to_datetime(year,month) 
-        if date:
-            company_data[company_name].append(date)
-        else:
-            company_data[company_name].append("N/A")
-            
+            date = await convert_to_datetime(year,month) 
+            if date:
+                company_data[company_name].append(date)
+            else:
+                company_data[company_name].append("N/A")
+                
     work_exp = []
     overlapping_durations=[]
     gaps=[]
@@ -62,74 +64,75 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
     #                 "type":"work_exp"
     #                 }
     #             )
-    for company_name, dates in company_data.items():
-        if dates != ["N/A"]:
-            # Parse the start and end dates into datetime objects
-            start_date = min(dates)
-            end_date = max(dates)
-            start_date_formatted = start_date.strftime("%m-%d-%Y")
-            end_date_formatted = end_date.strftime("%m-%d-%Y")
-            
-            # Calculate the difference in months
-            total_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-            
-            # Append the data to work_exp with the new "totalMonth" key
-            work_exp.append(
-                {
-                    "company_name": company_name, 
-                    "start_date": start_date_formatted, 
-                    "end_date": end_date_formatted,
-                    "totalMonth": total_months,  
-                    "type": "work_exp"
-                }
-            )
-        else:
-            work_exp.append(
-                {
-                    "company_name": company_name, 
-                    "start_date": "N/A",
-                    "end_date": "N/A",
-                    "totalMonth": 0,
-                    "type":"work_exp"
+    if len(company_data):
+        for company_name, dates in company_data.items():
+            if dates != ["N/A"]:
+                # Parse the start and end dates into datetime objects
+                start_date = min(dates)
+                end_date = max(dates)
+                start_date_formatted = start_date.strftime("%m-%d-%Y")
+                end_date_formatted = end_date.strftime("%m-%d-%Y")
+                
+                # Calculate the difference in months
+                total_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+                
+                # Append the data to work_exp with the new "totalMonth" key
+                work_exp.append(
+                    {
+                        "company_name": company_name, 
+                        "start_date": start_date_formatted, 
+                        "end_date": end_date_formatted,
+                        "totalMonth": total_months,  
+                        "type": "work_exp"
                     }
                 )
-            flag = True
-            companies_without_dates.append(company_name)
+            else:
+                work_exp.append(
+                    {
+                        "company_name": company_name, 
+                        "start_date": "N/A",
+                        "end_date": "N/A",
+                        "totalMonth": 0,
+                        "type":"work_exp"
+                        }
+                    )
+                flag = True
+                companies_without_dates.append(company_name)
+        
+        for i, entry1 in enumerate(work_exp):
+            # if entry1["end_date"]!="N/A":
+            #     end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
+            if entry1["end_date"]!="N/A":
+                end_date1 = await convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])        
 
-    for i, entry1 in enumerate(work_exp):
-        # if entry1["end_date"]!="N/A":
-        #     end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
-        if entry1["end_date"]!="N/A":
-            end_date1 = await convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])        
-
-            for entry2 in work_exp[i+1:]:
-                # if entry2["start_date"]!="N/A":
-                #     start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
-                if entry2["start_date"]!="N/A":
-                    start_date2 = await convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
-                    
-                    #overlapping
-                    
-                    if end_date1 > start_date2:
-                        start_date_dt = datetime.strptime(entry2["start_date"], "%m-%d-%Y")
-                        end_date_dt = datetime.strptime(entry1["end_date"], "%m-%d-%Y")
-                        total_months = (end_date_dt.year - start_date_dt.year) * 12 + (end_date_dt.month - start_date_dt.month)
-
-                        overlapping_durations.append({
+                for entry2 in work_exp[i+1:]:
+                    # if entry2["start_date"]!="N/A":
+                    #     start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
+                    if entry2["start_date"]!="N/A":
+                        start_date2 = await convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
                         
-                        "start_date": entry2["start_date"],
-                        "end_date": entry1["end_date"],
-                        "totalMonth": total_months,
-                        "type":"overlap"
-                        })
+                        #overlapping
+                        
+                        if end_date1 > start_date2:
+                            start_date_dt = datetime.strptime(entry2["start_date"], "%m-%d-%Y")
+                            end_date_dt = datetime.strptime(entry1["end_date"], "%m-%d-%Y")
+                            total_months = (end_date_dt.year - start_date_dt.year) * 12 + (end_date_dt.month - start_date_dt.month)
 
-                    #gaps
-                    
-                    if end_date1 < start_date2:
-                        gap_start_date = (end_date1 + timedelta(days=1)).strftime("%m-%d-%Y")
-                        gap_end_date = (start_date2 - timedelta(days=1)).strftime("%m-%d-%Y")
-                        gaps.append({"start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
-    
+                            overlapping_durations.append({
+                            
+                            "start_date": entry2["start_date"],
+                            "end_date": entry1["end_date"],
+                            "totalMonth": total_months,
+                            "type":"overlap"
+                            })
+
+                        #gaps
+                        
+                        if end_date1 < start_date2:
+                            gap_start_date = (end_date1 + timedelta(days=1)).strftime("%m-%d-%Y")
+                            gap_end_date = (start_date2 - timedelta(days=1)).strftime("%m-%d-%Y")
+                            gaps.append({"start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
+        
     #tenure
     
     resume_query = text("""
@@ -166,7 +169,7 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
                 "type":"work_exp"
                 }
             )
-        
+    
     overlapping_durations_tenure=[]
     gaps_tenure = []
     
@@ -181,11 +184,16 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
                         "end_date": entry1["end_date"],
                         "type":"overlap"
                         })
-                
+               
             if end_date1 < start_date2:
-                gap_start_date = (end_date1 + timedelta(days=1)).strftime("%m-%d-%Y")
-                gap_end_date = (start_date2 - timedelta(days=1)).strftime("%m-%d-%Y")
+                end_date1_datetime = datetime.strptime(end_date1, "%m-%d-%Y")
+                gap_start_date = (end_date1_datetime + timedelta(days=1)).strftime("%m-%d-%Y")
+                
+                start_date2_datetime = datetime.strptime(start_date2, "%m-%d-%Y")
+                gap_end_date = (start_date2_datetime - timedelta(days=1)).strftime("%m-%d-%Y")
+                
                 gaps_tenure.append({"start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
+            
 
     #discrepancies
     
@@ -204,9 +212,9 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
                 break 
     
     all_exp_govt_docs = work_exp + overlapping_durations + gaps
-    all_experiences_sorted_govt_docs = sorted(all_exp_govt_docs, key=lambda x: x.get("start_date", "N/A"))
+    
+    #all_experiences_sorted_govt_docs = sorted(all_exp_govt_docs, key=lambda x: x.get("start_date", "N/A"))
 
-    #print(all_experiences_sorted)
     all_exp_tenure = company_data + overlapping_durations_tenure + gaps_tenure
     all_experiences_sorted_tenure = sorted(all_exp_tenure, key=lambda x: x.get("start_date", "N/A"))
     
@@ -263,25 +271,28 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
         meter_text = "Concern"
     else:
         meter_text = "Bad"
-        
-    for i in all_exp_govt_docs:
-        if i['start_date'] =='N/A' or i['end_date'] =='N/A':
-            for j in all_exp_tenure:
-                if fuzz.partial_ratio(i['company_name'],j['company_name']) >= 80:
-                    i['start_date'] , i['end_date'], i['totalMonth'] = j['start_date'], j['end_date'], j['totalMonth']
-                    flag = False
-                    if i['company_name'] in companies_without_dates:
-                        companies_without_dates.remove(i['company_name']) 
-                        
+       
+       
+    if len(all_exp_govt_docs): 
+        for i in all_exp_govt_docs:
+            if i['start_date'] =='N/A' or i['end_date'] =='N/A':
+                for j in all_exp_tenure:
+                    if fuzz.partial_ratio(i['company_name'],j['company_name']) >= 80:
+                        i['start_date'] , i['end_date'], i['totalMonth'] = j['start_date'], j['end_date'], j['totalMonth']
+                        flag = False
+                        if i['company_name'] in companies_without_dates:
+                            companies_without_dates.remove(i['company_name']) 
+                            
     #final_exp_govt_docs = list(filter(lambda i: i['start_date'] != 'N/A' and i['end_date'] != 'N/A', all_exp_govt_docs))
     
     #Removing elements with "N/A" dates and checking if still "N/A" exists in multiple "N/A" cases
     final_exp_govt_docs=[]
-    for i in all_exp_govt_docs:
-        if i['start_date'] != 'N/A' or i['end_date'] !='N/A':
-            final_exp_govt_docs.append(i)
-        else:
-            flag=True
+    if len(all_exp_govt_docs):
+        for i in all_exp_govt_docs:
+            if i['start_date'] != 'N/A' or i['end_date'] !='N/A':
+                final_exp_govt_docs.append(i)
+            else:
+                flag=True
     
     highlight = []
     if good_to_know == 0:
@@ -312,7 +323,8 @@ async def get_career_summary(person_id: str, db: AsyncSession = Depends(get_db),
             highlight.append(f"No starting date and ending date of employment found for these companies - {company_list} in government documents")
         else:
             highlight.append(f"No starting date and ending date of employment found for {companies_without_dates[0]} in government documents")
-            
+    
+    
     return CareerDetailsResponse(
         all_experiences_govt_docs = final_exp_govt_docs,
         all_experiences_tenure = all_experiences_sorted_tenure,

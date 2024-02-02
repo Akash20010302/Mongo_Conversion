@@ -1,15 +1,16 @@
 from fastapi.responses import JSONResponse
 from loguru import logger
-from db.db import session
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, FastAPI
 from sqlalchemy.sql import text
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, Session
 from async_sessions.sessions import get_db
 from typing import List, Optional, Tuple
 from fastapi.middleware.cors import CORSMiddleware
 from collections import defaultdict
 from datetime import datetime, timedelta
+from db.db import get_db_db
 from endpoints.summary_endpoints import summary_router
 from endpoints.identification_endpoints import identification_router
 from endpoints.contact_endpoints import contact_router
@@ -39,7 +40,7 @@ app.include_router(share_router)
 app.include_router(new_hire_router)
 
 @app.get('/sessionrollback',tags=['App'])
-async def rollback():
+async def rollback(session: Session = Depends(get_db_db)):
     session.rollback()
     return JSONResponse(content="Success")
 

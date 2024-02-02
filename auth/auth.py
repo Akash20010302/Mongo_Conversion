@@ -1,10 +1,12 @@
-from fastapi import Security, HTTPException
+from fastapi import Depends, Security, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 import jwt
 import datetime
+from sqlmodel import Session
 
 from starlette import status
+from db.db import get_db_db
 
 from repos.admin_repos import find_admin_filtered
 
@@ -25,7 +27,7 @@ class AuthHandler:
         except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail='Invalid Token')
 
-    async def get_current_admin(self, auth: HTTPAuthorizationCredentials = Security(security)):
+    async def get_current_admin(self, auth: HTTPAuthorizationCredentials = Security(security),session: Session = Depends(get_db_db)):
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Could not validate credentials'
@@ -33,7 +35,7 @@ class AuthHandler:
         username = await self.decode_token(auth.credentials)
         if username is None:
             raise credentials_exception
-        admin = await find_admin_filtered(username)
+        admin = find_admin_filtered(username,session)
         if admin is None:
             raise credentials_exception
         return admin
