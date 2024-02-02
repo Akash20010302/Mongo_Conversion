@@ -8,12 +8,13 @@ from sqlmodel import Session
 username = "admin"
 password = "trace_admin"
 #host = "trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
-host = "dev-trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
+#host = "dev-trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
+hostprod = "prod-trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
 port = 3306
 database_name = "database"
 
 try:# MySQL connection string
-    mysql_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database_name}"
+    mysql_url = f"mysql+pymysql://{username}:{password}@{hostprod}:{port}/{database_name}"
     engine = create_engine(mysql_url)
     session = Session(bind=engine)
 except Exception as e:

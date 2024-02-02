@@ -77,7 +77,7 @@ async def convert_to_identification(res):
     res2 = await find_kyc(res.id)
     s = {
         "Aadhar_Number" : res.Aadhar_Number,
-        "Pan_Number" : res.Pan_Number.upper(),
+        "Pan_Number" : res.Pan_Number.upper() if res.Pan_Number is not None else None,
         "Extracted_Aadhar_Number" : res.Extracted_Aadhar_Number,
         "Extracted_Pan_Number" : res.Extracted_Pan_Number,
         "aadharurl" : res.aadharurl,

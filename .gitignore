@@ -6,3 +6,4 @@ repos/__pycache__
 async_sessions/__pycache__
 endpoints/__pycache__
 tools/__pycache__
+logs
