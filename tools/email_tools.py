@@ -1,4 +1,5 @@
 import asyncio
+import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -8,10 +9,13 @@ from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 from mysqlx import Session
 from models.Share import Share
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-FROM_EMAIL_ID = "noreply@itraceu.com"
-PASSWORD = "nyqysmzachhkerfk"
+FROM_EMAIL_ID = os.getenv('FROM_EMAIL_ID')
+PASSWORD = os.getenv('PASSWORD')
 
 import datetime
 import jwt

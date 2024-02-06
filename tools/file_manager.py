@@ -2,9 +2,12 @@ import boto3
 import os
 import base64
 from io import BytesIO
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-bucket = "trace-identification-file-storage"
+bucket = os.getenv('BUCKET_NAME')
 s3 = boto3.client('s3')
 
 async def upload_file_to_s3(file, dest_name):
