@@ -1,18 +1,28 @@
+import os
 from loguru import logger
 from sqlmodel import create_engine
 from sqlmodel import Session
 from sqlalchemy.exc import PendingRollbackError
+from dotenv import load_dotenv
+
+load_dotenv()
+
+username = os.getenv("DB_USERNAME")
+password = os.getenv("DB_PASSWORD")
+host = os.getenv("DB_HOST")
+port = int(os.getenv("DB_PORT"))
+database_name = os.getenv("DB_NAME")
 
 # eng = r'/home/ubuntu/trace_backend/database.db'
 # sqlite_url = f'sqlite:///{eng}'
 # engine = create_engine(sqlite_url)
 # session = Session(bind=engine)
-username = "admin"
-password = "trace_admin"
-#host = "trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
-host = "dev-trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
-port = 3306
-database_name = "database"
+# username = "admin"
+# password = "trace_admin"
+# #host = "trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
+# host = "dev-trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
+# port = 3306
+# database_name = "database"
 
 # try:# MySQL connection string
 #     mysql_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database_name}"

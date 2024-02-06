@@ -1,11 +1,15 @@
+import os
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-username = "admin"
-password = "trace_admin"
-host = "dev-trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
-#host = "trace-database.cp624e0cixqq.ap-south-1.rds.amazonaws.com"
-port = 3306
-database_name = "database"
+from dotenv import load_dotenv
+
+load_dotenv()
+
+username = os.getenv("DB_USERNAME")
+password = os.getenv("DB_PASSWORD")
+host = os.getenv("DB_HOST")
+port = int(os.getenv("DB_PORT"))
+database_name = os.getenv("DB_NAME")
 # mysql_url = f"mysql+mysqlconnector://{username}:{password}@{host}:{port}/{database_name}"
 mysql_url = f"mysql+aiomysql://{username}:{password}@{host}:{port}/{database_name}"
 
