@@ -14,3 +14,4 @@ logs
 report_log.log
 nohup.out
 .env
+main.py
