@@ -11,3 +11,5 @@ server_log.log
 logs/access.log
 logs/error.log
 logs
+report_log.log
+nohup.out

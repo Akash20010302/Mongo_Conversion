@@ -20,8 +20,12 @@ from endpoints.career_endpoints import career_router
 from endpoints.share_endpoints import share_router
 from endpoints.newhire_endpoints import new_hire_router
 
-app = FastAPI()
-logger.success("Report Server StartUp Successful")
+try:
+    app = FastAPI()
+    logger.success("Report Server StartUp Successful")
+except Exception as ex:
+    logger.error(ex)
+    logger.debug("Cannot Start Report Server")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

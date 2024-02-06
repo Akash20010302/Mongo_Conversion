@@ -33,7 +33,7 @@ engine = create_engine(
     max_overflow=20,
     pool_timeout=30,
     pool_recycle=1800,
-    echo=True
+    echo=False
 )
 
 def get_db_db()->Session:

@@ -9,12 +9,14 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_200_OK, HTTP_404_NOT_FOU
 from auth.auth import AuthHandler
 from db.db import get_db_db
 from models.Application import ApplicationList
+from models.CompCandidateList import CompCanList
+from models.Company import CompanyList
 from models.Form import Form
 from models.Share import ReShare, Share, ShareEmail, StopShare
 from repos.application_repos import select_all_appid
 from repos.compcan_repos import select_all_candidatesid_filtered
 from repos.share_repos import get_share_list
-from tools.email_tools import get_email_body, send_share_email
+from tools.email_tools import get_email_body, report_share_email
 from tools.encrypter_tools import decrypt, encrypt
 from sqlalchemy.exc import PendingRollbackError
 
@@ -52,10 +54,10 @@ async def send_report(share: ShareEmail, session: Session = Depends(get_db_db)):
                 session.refresh(a)
                 id.append(a.id)
                 name = form_found.firstName + " " + (form_found.middleName + " " if form_found.middleName is not None else "") + form_found.lastName
-                email[a.id]=name
+                email[a.id]=[name,appl_found.candidatetype]
         try:
-            body = await get_email_body(email,share.emailBody,session)
-            if ((await send_share_email(to_email=x,subject=share.emailSubject,body=body))==True):
+            body = await get_email_body(email,session)
+            if ((await report_share_email(to_email=x,companyname=session.get(CompanyList,session.get(CompCanList,appl_found.compid).companyid).legalname,body=body,emailbody=share.emailBody))==True):
                 for x in id:
                     a = session.get(Share,x)
                     a.email_status = True
@@ -65,7 +67,7 @@ async def send_report(share: ShareEmail, session: Session = Depends(get_db_db)):
                 #logger.debug(x)
                 failed.append(x)     
         except Exception as e:
-            #logger.debug(e)
+            logger.error(e)
             failed.append(x)
     if len(failed)<1:
         return JSONResponse(status_code=HTTP_200_OK,content={"body":"All Emails sent successfully"})
