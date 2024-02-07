@@ -6,7 +6,7 @@ from sqlalchemy.sql import text
 from models.About import HouseholdIncome, Info
 from starlette.status import HTTP_404_NOT_FOUND
 from tools.benchmark_tools import convert_to_datetime
-
+from loguru import logger
 
 about_router = APIRouter()
 
@@ -91,7 +91,6 @@ async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2
     )
     role = result_role.fetchone()
 
-    from loguru import logger
     #logger.debug(f"PERSONAL INFO: {personal_info_1}")
 
     # Combine data from both databases into the Info response
