@@ -57,7 +57,12 @@ async def send_report(share: ShareEmail, session: Session = Depends(get_db_db)):
                 email[a.id]=[name,appl_found.candidatetype]
         try:
             body = await get_email_body(email,session)
-            if ((await report_share_email(to_email=x,companyname=session.get(CompanyList,session.get(CompCanList,appl_found.compid).companyid).legalname,body=body,emailbody=share.emailBody))==True):
+            if ((await report_share_email(
+                to_email=x,
+                companyname=session.get(CompanyList,session.get(CompCanList,appl_found.compid).companyid).legalname,
+                body=body,
+                emailbody=share.emailBody
+                ))==True):
                 for x in id:
                     a = session.get(Share,x)
                     a.email_status = True

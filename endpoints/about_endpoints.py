@@ -45,6 +45,7 @@ async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2
             passbook_month
         FROM
             get_passbook_details
+        WHERE person_id = :person_id
         GROUP BY
             company_name, passbook_year, passbook_month
     """
@@ -68,8 +69,10 @@ async def about_user(id: int, db_1: AsyncSession = Depends(get_db_backend), db_2
     result = []
     durations = []
     
-    for company_name, dates in company_data.items():
-        if dates!= ["N/A"]:
+    for company_name, date_list in company_data.items():
+        logger.debug(date_list)
+        dates = [date for date in date_list if date !="N/A"]
+        if len(dates):
             start_date = min(dates)
             end_date = max(dates)
             duration = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)

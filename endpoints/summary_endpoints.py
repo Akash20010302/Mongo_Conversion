@@ -338,8 +338,10 @@ async def summary(person_id:str,db: AsyncSessionLocal = Depends(get_db),db_backe
     flag = False
     companies_without_dates = []
     if len(company_data):
-        for company_name, dates in company_data.items():
-            if dates != ["N/A"]:
+        for company_name, date_list in company_data.items():
+            logger.debug(date_list)
+            dates = [date for date in date_list if date !="N/A"]
+            if len(dates):
                 # Parse the start and end dates into datetime objects
                 start_date = min(dates)
                 end_date = max(dates)
