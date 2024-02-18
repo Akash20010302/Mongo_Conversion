@@ -1,1 +1,1 @@
-admins=['Super Admin','Admin']
+admins = ["Super Admin", "Admin"]

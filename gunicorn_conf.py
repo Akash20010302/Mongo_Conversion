@@ -31,9 +31,11 @@ access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"
 # Process naming
 proc_name = "REPORT_SERVER"
 
+
 # Server hooks
 def on_starting(server):
     print("Starting FastAPI app...")
+
 
 def on_exit(server):
     print("Stopping FastAPI app...")

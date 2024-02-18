@@ -2,8 +2,9 @@ import datetime
 from typing import List, Optional
 from pydantic import EmailStr
 from sqlmodel import SQLModel
-from async_sessions.sessions import get_db, get_db_backend
 import warnings
+
+from db.db import get_db_analytics,get_db_backend
 
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers.modeling_bert")
 
@@ -109,4 +110,4 @@ class Summary(SQLModel):
 class AsyncGenerator():
     def __init__(self):
         self.backend = get_db_backend()
-        self.analytics = get_db()
+        self.analytics = get_db_analytics()
