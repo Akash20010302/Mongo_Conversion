@@ -353,8 +353,8 @@ async def get_ctc_info(
         total_duration = round(float(sum(durations) / 12), 2)
         total_duration = round(total_duration, 0)
         total_jobs = len(result)
-        median_duration = int(statistics.median(durations))
-        average_duration = int(statistics.mean(durations))
+        median_duration = int(statistics.median(durations)) if len(durations) else 0
+        average_duration = int(statistics.mean(durations)) if len(durations) else 0
         if average_duration < 15:
             risk_duration = "Very High"
         elif 15 <= average_duration < 35:
@@ -409,7 +409,7 @@ async def get_ctc_info(
             remarks=tenure_remarks,
             total_exp=total_duration,
             num_of_jobs=total_jobs,
-            calculated_work_exp=calculated_work_exp,
+            calculated_work_exp=calculated_work_exp if calculated_work_exp is not None else 0.0,
         )
 
         return Response(
