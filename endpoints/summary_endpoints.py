@@ -30,7 +30,6 @@ from models.Summary import (
     identity_info,
 )
 from repos.application_repos import find_application
-from repos.as_repos import find_business, find_salary
 from repos.form_repos import get_basic_info
 from tools.benchmark_tools import convert_to_datetime
 from tools.career_tools import overlap

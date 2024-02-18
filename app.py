@@ -16,8 +16,7 @@ from endpoints.contact_endpoints import contact_router
 from endpoints.benchmark_endpoints import benchmark_router
 from endpoints.about_endpoints import about_router
 from endpoints.career_endpoints import career_router
-
-# from endpoints.share_endpoints import share_router
+from endpoints.share_endpoints import share_router
 from endpoints.newhire_endpoints import new_hire_router
 from endpoints.credits_endpoints import credits_router
 from endpoints.financial_endpoints import financial_router
@@ -42,7 +41,7 @@ app.include_router(contact_router)
 app.include_router(benchmark_router)
 app.include_router(about_router)
 app.include_router(career_router)
-# app.include_router(share_router)
+app.include_router(share_router)
 app.include_router(new_hire_router)
 app.include_router(credits_router)
 app.include_router(financial_router)

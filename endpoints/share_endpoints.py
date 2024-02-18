@@ -12,7 +12,7 @@ from starlette.status import (
     HTTP_401_UNAUTHORIZED,
 )
 from auth.auth import AuthHandler
-from db.db import get_db_db
+from db.db import get_db_backend
 from models.Application import ApplicationList
 from models.CompCandidateList import CompCanList
 from models.Company import CompanyList
@@ -30,7 +30,7 @@ auth_handler = AuthHandler()
 
 
 @share_router.post("/send_report", tags=["Share"])
-async def send_report(share: ShareEmail, session: Session = Depends(get_db_db)):
+async def send_report(share: ShareEmail, session: Session = Depends(get_db_backend)):
     failed = []
     for x in share.email:
         email = dict()
@@ -108,7 +108,7 @@ async def send_report(share: ShareEmail, session: Session = Depends(get_db_db)):
 
 
 @share_router.get("/check_shared/{key}", tags=["Share"])
-async def check_share(key: str, session: Session = Depends(get_db_db)):
+async def check_share(key: str, session: Session = Depends(get_db_backend)):
     class InvalidToken(Exception):
         def __init__(self, message="Invalid Token"):
             self.message = message
@@ -199,7 +199,7 @@ async def check_share(key: str, session: Session = Depends(get_db_db)):
 
 
 @share_router.put("/shared/stop_share", response_model=str, tags=["Share"])
-async def stop_share(id: StopShare, session: Session = Depends(get_db_db)):
+async def stop_share(id: StopShare, session: Session = Depends(get_db_backend)):
     share_found = session.get(Share, id.id)
     if share_found is not None:
         share_found.status = "Terminated"
@@ -213,7 +213,7 @@ async def stop_share(id: StopShare, session: Session = Depends(get_db_db)):
 
 
 @share_router.put("/shared/reshare", response_model=str, tags=["Share"])
-async def reshare(id: ReShare, session: Session = Depends(get_db_db)):
+async def reshare(id: ReShare, session: Session = Depends(get_db_backend)):
     share_found = session.get(Share, id.id)
     if share_found is not None:
         if share_found.status != "Active":
@@ -234,7 +234,7 @@ async def reshare(id: ReShare, session: Session = Depends(get_db_db)):
 
 @share_router.get(f"/shared/get-list", tags=["Share"])
 async def get_share(
-    user=Depends(auth_handler.get_current_admin), session: Session = Depends(get_db_db)
+    user=Depends(auth_handler.get_current_admin), session: Session = Depends(get_db_backend)
 ):
     try:
         if user.role not in ["Super Admin", "Admin"]:
