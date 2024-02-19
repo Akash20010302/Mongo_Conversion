@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-FROM_EMAIL_ID = os.getenv('FROM_EMAIL_ID')
-PASSWORD = os.getenv('PASSWORD')
+FROM_EMAIL_ID = os.getenv("FROM_EMAIL_ID")
+PASSWORD = os.getenv("PASSWORD")
 
 import datetime
 import jwt
@@ -27,66 +27,67 @@ async def render_template(template_path, context):
     template = env.get_template(template_path)
     return template.render(context)
 
-async def report_share_email(to_email,companyname,body,emailbody):
+
+async def report_share_email(to_email, companyname, body, emailbody):
     try:
         subject = f"{companyname} has shared candidate reports with you"
-        context = {
-        'company': companyname,
-        'body' : body,
-        'emailbody':emailbody
-        }
+        context = {"company": companyname, "body": body, "emailbody": emailbody}
         body = await render_template("html-template/slide7.html", context)
-        #logger.debug(f"body:{body}")
+        # logger.debug(f"body:{body}")
         from_email = FROM_EMAIL_ID
         password = PASSWORD
-        
+
         message = MIMEMultipart()
         message["From"] = from_email
         message["To"] = to_email
         message["Subject"] = subject
 
         message.attach(MIMEText(body, "html"))
-        
+
         loop = asyncio.get_event_loop()
-        
+
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             await loop.run_in_executor(None, server.login, from_email, password)
-            await loop.run_in_executor(None, server.sendmail, from_email, to_email, message.as_string())
+            await loop.run_in_executor(
+                None, server.sendmail, from_email, to_email, message.as_string()
+            )
         return True
     except Exception as ex:
         logger.error(f"Email Error : {ex}")
         return False
+
+
 # No-8.
 # to admin about report share initiation
 async def report_share_to_admin_email(to_email):
     try:
         subject = f"Report Sharing has been initiated"
-        context = {
-        
-    }
+        context = {}
         body = await render_template("html-template/slide8.html", context)
-        #logger.debug(f"body:{body}")
+        # logger.debug(f"body:{body}")
         from_email = FROM_EMAIL_ID
         password = PASSWORD
-        
+
         message = MIMEMultipart()
         message["From"] = from_email
         message["To"] = to_email
         message["Subject"] = subject
 
         message.attach(MIMEText(body, "html"))
-        
+
         loop = asyncio.get_event_loop()
-        
+
         # Connect and send mail using the loop
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             await loop.run_in_executor(None, server.login, from_email, password)
-            await loop.run_in_executor(None, server.sendmail, from_email, to_email, message.as_string())
+            await loop.run_in_executor(
+                None, server.sendmail, from_email, to_email, message.as_string()
+            )
         return True
     except Exception as ex:
         logger.error(f"Email Error : {ex}")
         return False
-  
+
 
 # async def send_share_email(to_email,subject,body)->bool:
 #     try:
@@ -94,7 +95,7 @@ async def report_share_to_admin_email(to_email):
 #         body = f'''
 #             {body}<br>
 #         '''
-#         from_email = FROM_EMAIL_ID 
+#         from_email = FROM_EMAIL_ID
 #         password = PASSWORD
 
 #         message = MIMEMultipart()
@@ -121,9 +122,12 @@ async def report_share_to_admin_email(to_email):
 #         '''
 #     return body
 
-async def link_generator(id:int,name:str,candidatetype:str,session:Session)->str:
-    share_found = session.get(Share,id)
-    body = f'''
+
+async def link_generator(
+    id: int, name: str, candidatetype: str, session: Session
+) -> str:
+    share_found = session.get(Share, id)
+    body = f"""
         <li>
             <div style="font-size: 12px; margin-bottom: 7px;">
                 {name} as {candidatetype}
@@ -140,16 +144,19 @@ async def link_generator(id:int,name:str,candidatetype:str,session:Session)->str
                         text-decoration: none; " href="{share_found.shared_url}">View report</a>
             </div>
         </li>
-        '''
+        """
     return body
+
+
 # async def get_email_body(email:dict,body:str,session:Session)->str:
 #     s='''<br><br>'''
 #     for x in email.keys():
 #         s+=await link_generator(x,email[x][0],email[x][1],session=session)
 #     return body+s
-    
-async def get_email_body(email:dict,session:Session)->str:
-    s=''
+
+
+async def get_email_body(email: dict, session: Session) -> str:
+    s = ""
     for x in email.keys():
-        s+=await link_generator(x,email[x][0],email[x][1],session=session)
-    return s      
+        s += await link_generator(x, email[x][0], email[x][1], session=session)
+    return s
