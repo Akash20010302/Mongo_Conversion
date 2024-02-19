@@ -6,6 +6,12 @@ repos/__pycache__
 async_sessions/__pycache__
 endpoints/__pycache__
 tools/__pycache__
-logs/server_error_log.log
-logs/server_log.log
+server_error_log.log
+server_log.log
+logs/access.log
+logs/error.log
 logs
+report_log.log
+nohup.out
+.env
+main.py

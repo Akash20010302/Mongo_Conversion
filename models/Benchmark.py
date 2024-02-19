@@ -72,16 +72,14 @@ class PayAnalysis(SQLModel):
 
 
 class TenureAnalysis(SQLModel):
-    #work_exp: list[dict]
     work_exp : list
-    #overlapping_durations: list
-    #gaps: list
     avg_tenure: int 
     median_tenure: int
     Risk: str
     remarks: str
-    total_exp: int
+    total_exp: float
     num_of_jobs: int
+    calculated_work_exp: Optional[float]=0.0
 
 
 class Response(SQLModel):
