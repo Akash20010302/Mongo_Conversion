@@ -110,7 +110,7 @@ async def about_user(
                         }
                     )
                     durations.append(0)
-        print(durations)
+        
         total_duration = float(sum(durations) / 12)
         total_duration = round(total_duration, 2)
 
