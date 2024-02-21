@@ -16,6 +16,14 @@ async def get_income_summary(
     application_id: str, db: Session = Depends(get_db_analytics)
 ):
     try:
+        validation_query = text("""
+                                SELECT count(*) FROM itr_26as_details WHERE application_id = :application_id
+                                """)
+        
+        valid_count = db.exec(validation_query.params(application_id=application_id))
+        count_raw_data = valid_count.fetchone()
+        if count_raw_data[0] == 0:
+            raise HTTPException(detail="Application not found", status_code=404)
         query = text(
             """
             SELECT
@@ -327,19 +335,19 @@ async def get_income_summary(
             )
 
         income_highlights = []
-        if business_income_percentage + overseas_income_percentage > 5:
+        if business_income_percentage + personal_income_percentage + other_income_percentage + overseas_income_percentage > 5:
             income_highlights.append(
-                f"Additional income is available from other businesses. Since this income is more than 5% of the overall income, it should be declared."
+                f"Additional income is available from other sources. Since this income is more than 5% of the overall income, it should be declared."
             )
         elif (
             business_income_percentage > 0 or overseas_income_percentage > 0
-        ) and business_income_percentage + overseas_income_percentage <= 5:
+        ) and business_income_percentage + personal_income_percentage + other_income_percentage + overseas_income_percentage <= 5:
             income_highlights.append(
-                f"Additional income is available from other businesses. But this income is less than or equal to 5% of the overall income."
+                f"Additional income is available from other sources. But this income is less than or equal to 5% of the overall income."
             )
-        elif business_income_percentage <= 0 and overseas_income_percentage <= 0:
+        elif business_income_percentage <= 0 and overseas_income_percentage <= 0 and personal_income_percentage<=0 and other_income_percentage<=0:
             income_highlights.append(
-                f"No additional income is available from other businesses."
+                f"No additional income is available from other sources."
             )
 
         if business_income_percentage > salary_percentage:

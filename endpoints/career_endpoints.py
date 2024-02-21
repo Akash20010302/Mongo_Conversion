@@ -31,6 +31,15 @@ async def get_career_summary(
     db_backend: Session = Depends(get_db_backend),
 ):
     try:
+        validation_query = text("""
+                                SELECT count(*) FROM epfo_get_passbook_details WHERE application_id = :application_id
+                                """)
+        
+        valid_count = db.exec(validation_query.params(application_id=application_id))
+        count_raw_data = valid_count.fetchone()
+        if count_raw_data[0] == 0:
+            raise HTTPException(detail="Application not found", status_code=404)
+        
         flag = False
         companies_without_dates = []
         # govt_docs
@@ -63,7 +72,7 @@ async def get_career_summary(
                     company_data[company_name].append(date)
                 else:
                     company_data[company_name].append("N/A")
-
+        
         work_exp = []
         overlapping_durations = []
         gaps = []
@@ -242,9 +251,9 @@ async def get_career_summary(
                     overlapping_gaps.append(gap)
                     break
 
-        #logger.debug(f"Work_Exp : {work_exp}")
-        #logger.debug(f"Overlap : {overlapping_durations}")
-        #logger.debug(f"Gaps : {gaps}")
+        logger.debug(f"Work_Exp : {work_exp}")
+        logger.debug(f"Overlap : {overlapping_durations}")
+        logger.debug(f"Gaps : {gaps}")
         
         all_exp_govt_docs = []
         if work_exp:
@@ -262,6 +271,31 @@ async def get_career_summary(
             all_exp_tenure += overlapping_durations_tenure
         if gaps_tenure:
             all_exp_tenure += gaps_tenure
+            
+        date_mismatch = 0
+        
+        if work_exp and company_data:
+            
+            for govt in work_exp:
+                if govt.get("start_date") != "N/A" and govt.get("end_date") != "N/A":
+                    for resume in company_data:
+                        if resume.get("start_date") != "N/A" and resume.get("end_date") != "N/A":
+                            logger.debug(f"{govt.get('company_name').lower()},{resume.get('company_name').lower()}:{fuzz.partial_ratio(govt.get('company_name').lower(),resume.get('company_name').lower())}")
+                            if fuzz.partial_ratio(govt.get("company_name").lower(),resume.get("company_name").lower())>=80:
+                                from_date = datetime.strptime(govt.get("start_date"), "%m-%d-%Y")
+                                logger.debug(from_date)
+                                to_date = datetime.strptime(resume.get("start_date"), "%m-%d-%Y")
+                                logger.debug(to_date)
+                                total_months_start = abs(to_date.year - from_date.year) * 12 + abs(
+                                from_date.month - to_date.month
+                                )
+                                from_date = datetime.strptime(govt.get("end_date"), "%m-%d-%Y")
+                                to_date = datetime.strptime(resume.get("end_date"), "%m-%d-%Y")
+                                total_months_end = abs(to_date.year - from_date.year) * 12 + abs(
+                                from_date.month - to_date.month
+                                )
+                                if total_months_start >1 or total_months_end >1: 
+                                    date_mismatch += 1 
         
         all_experiences_sorted_tenure = sorted(
             all_exp_tenure, key=lambda x: x.get("start_date", "N/A")
@@ -325,6 +359,7 @@ async def get_career_summary(
             + other_count
             + overseas_count
             + personal_count
+            + date_mismatch
         )
         discrepancies = len(overlapping_gaps)
         good_to_know = len(gaps)
