@@ -48,9 +48,10 @@ def get_db_analytics():
             yield from get_db_analytics(analytics_engine)
         except Exception as e:
             import traceback
-            traceback.print_exc()
             logger.debug("Session Can't Be Created.")
             logger.error(f"Error : {e}")
+            logger.debug("----DEBUG----")
+            logger.debug(traceback.format_exc())
         finally:
             db.close()
 
@@ -66,8 +67,9 @@ def get_db_backend(): # type: ignore
         yield from get_db_backend(engine)
     except Exception as e:
         import traceback
-        traceback.print_exc()
         logger.debug("Session Can't Be Created.")
         logger.error(f"Error : {e}")
+        logger.debug("----DEBUG----")
+        logger.debug(traceback.format_exc())
     finally:
         db.close()

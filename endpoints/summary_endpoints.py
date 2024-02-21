@@ -108,6 +108,16 @@ async def summary(
     db_backend: Session = Depends(get_db_backend),
 ):
     try:
+        
+        validation_query = text("""
+                                SELECT count(*) FROM itr_26as_details WHERE application_id = :application_id
+                                """)
+        
+        valid_count = db.exec(validation_query.params(application_id=application_id))
+        count_raw_data = valid_count.fetchone()
+        if count_raw_data[0] == 0:
+            raise HTTPException(detail="Application not found", status_code=404)
+        
         query = text(
             """
             SELECT
@@ -147,9 +157,12 @@ async def summary(
         result = db.exec(query.params(application_id=application_id))
         summary = result.fetchone()
 
-        total_salary = summary[0] if summary[0] is not None else 0.0
-        total_business_income = summary[1] if summary[1] is not None else 0.0
+        total_salary = summary[4] if summary[4] is not None else 0.0
+        total_other_income = summary[5] if summary[5] is not None else 0.0
+        total_business_income = summary[6] if summary[6] is not None else 0.0
+        total_personal_income = summary[7] if summary[7] is not None else 0.0
 
+        
         overseas_income_query = text(
             """
                                     SELECT 
@@ -177,11 +190,20 @@ async def summary(
         for row in overseas_income_raw_data:
             month_year, amount, source = row
             total_overseas_income += amount
-        total_income = total_salary + total_business_income + total_overseas_income
-
+            
+        total_income = (
+            total_salary
+            + total_other_income
+            + total_business_income
+            + total_overseas_income
+            + total_personal_income
+        )
         # Calculate the percentage share of each income type
         salary_percentage = (
             (total_salary / total_income * 100) if total_income > 0 else 0
+        )
+        other_income_percentage = (
+            (total_other_income / total_income * 100) if total_income > 0 else 0
         )
         business_income_percentage = (
             (total_business_income / total_income * 100) if total_income > 0 else 0
@@ -189,24 +211,28 @@ async def summary(
         overseas_income_percentage = (
             (total_overseas_income / total_income * 100) if total_income > 0 else 0
         )
+        personal_income_percentage = (
+            (total_personal_income / total_income * 100) if total_income > 0 else 0
+        )
 
+        
         highlights = []
 
-        if business_income_percentage + overseas_income_percentage > 5:
+        if business_income_percentage + personal_income_percentage + other_income_percentage + overseas_income_percentage > 5:
             highlights.append(
-                f"Additional income is available from other businesses. Since this income is more than 5% of the overall income, it should be declared."
+                f"Additional income is available from other sources. Since this income is more than 5% of the overall income, it should be declared."
             )
         elif (
             business_income_percentage > 0 or overseas_income_percentage > 0
-        ) and business_income_percentage + overseas_income_percentage <= 5:
+        ) and business_income_percentage + personal_income_percentage + other_income_percentage + overseas_income_percentage <= 5:
             highlights.append(
-                f"Additional income is available from other businesses. But this income is less than or equal to 5% of the overall income."
+                f"Additional income is available from other sources. But this income is less than or equal to 5% of the overall income."
             )
-        elif business_income_percentage <= 0 and overseas_income_percentage <= 0:
+        elif business_income_percentage <= 0 and overseas_income_percentage <= 0 and personal_income_percentage<=0 and other_income_percentage<=0:
             highlights.append(
-                f"No additional income is available from other businesses."
+                f"No additional income is available from other sources."
             )
-
+            
         if business_income_percentage > salary_percentage:
             highlights.append(
                 f"Business income is more than the Salary. This could lead to the candidate paying more attention to the additional income sources."
@@ -242,6 +268,10 @@ async def summary(
             business_percentage=round(business_income_percentage),
             overseas_income=round(total_overseas_income),
             overseas_percentage=round(overseas_income_percentage),
+            personal_income=round(total_personal_income),
+            personal_income_percentage=round(personal_income_percentage),
+            other_income=round(total_other_income),
+            other_income_percentage=round(other_income_percentage),
             highlights=highlights,
         )
 

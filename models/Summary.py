@@ -86,6 +86,10 @@ class IncomePosition(SQLModel):
     business_percentage: int
     overseas_income: int
     overseas_percentage: int
+    personal_income: int
+    personal_income_percentage: int
+    other_income: int
+    other_income_percentage: int
     highlights: List[str]
     
 class ExperienceSummary(SQLModel):

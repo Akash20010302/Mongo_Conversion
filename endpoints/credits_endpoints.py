@@ -62,6 +62,15 @@ async def get_career_summary(
     application_id: str, db: Session = Depends(get_db_analytics)
 ):
     try:
+        validation_query = text("""
+                                SELECT count(*) FROM credits_retailaccountdetails WHERE application_id = :application_id
+                                """)
+        
+        valid_count = db.exec(validation_query.params(application_id=application_id))
+        count_raw_data = valid_count.fetchone()
+        if count_raw_data[0] == 0:
+            raise HTTPException(detail="Application not found", status_code=404)
+        
         query_accounts = text(
             """
             SELECT DISTINCT AccountNumber
