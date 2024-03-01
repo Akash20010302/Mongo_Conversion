@@ -74,20 +74,42 @@ def convert_to_basic_info(res, res2, session):
     return s
 
 
+#async def convert_to_identification(res):
+#    res2 = await find_kyc(res.id)
+#    # logger.debug(f"RES2: {res2}")
+#    s = {
+#        "Aadhar_Number": res.Aadhar_Number,
+#        "Pan_Number": res.Pan_Number.upper() if res.Pan_Number is not None else None,
+#        "Extracted_Aadhar_Number": res.Extracted_Aadhar_Number,
+#        "Extracted_Pan_Number": res.Extracted_Pan_Number,
+#        "aadharurl": res.aadharurl,
+#        "panurl": res.panurl,
+#        "govt_pan_number": res2.kyc_details_pan_number if res2 else "N/A",
+#        "govt_aadhaar_number": res2.kyc_details_aadhaar_number if res2 else "N/A",
+#    }
+#    return s
 async def convert_to_identification(res):
     res2 = await find_kyc(res.id)
-    # logger.debug(f"RES2: {res2}")
+    
+    masked_aadhar = "XXXX-XXXX-" + res.Aadhar_Number[-4:] if res.Aadhar_Number else None
+    masked_pan = res.Pan_Number[0] + "*" * (len(res.Pan_Number) - 2) + res.Pan_Number[-1] if res.Pan_Number else None    
+    masked_extracted_aadhar = "XXXX-XXXX-" + res.Extracted_Aadhar_Number[-4:] if res.Extracted_Aadhar_Number else None
+    masked_extracted_pan = res.Extracted_Pan_Number[0] + "*" * (len(res.Extracted_Pan_Number) - 2) + res.Extracted_Pan_Number[-1] if res.Extracted_Pan_Number else None
+    masked_govt_aadhar = "XXXX-XXXX-" + res2.kyc_details_aadhaar_number[-4:] if res2 and res2.kyc_details_aadhaar_number else "N/A"
+    masked_govt_pan = res2.kyc_details_pan_number[0] + "*" * (len(res2.kyc_details_pan_number) - 2) + res2.kyc_details_pan_number[-1] if res2 and res2.kyc_details_pan_number else "N/A"
+
     s = {
-        "Aadhar_Number": res.Aadhar_Number,
-        "Pan_Number": res.Pan_Number.upper() if res.Pan_Number is not None else None,
-        "Extracted_Aadhar_Number": res.Extracted_Aadhar_Number,
-        "Extracted_Pan_Number": res.Extracted_Pan_Number,
+        "Aadhar_Number": masked_aadhar,
+        "Pan_Number": masked_pan.upper() if masked_pan else None,
+        "Extracted_Aadhar_Number": masked_extracted_aadhar,
+        "Extracted_Pan_Number": masked_extracted_pan.upper() if masked_extracted_pan else None,
         "aadharurl": res.aadharurl,
         "panurl": res.panurl,
-        "govt_pan_number": res2.kyc_details_pan_number if res2 else "N/A",
-        "govt_aadhaar_number": res2.kyc_details_aadhaar_number if res2 else "N/A",
+        "govt_pan_number": masked_govt_pan,
+        "govt_aadhaar_number": masked_govt_aadhar
     }
     return s
+
 
 
 def get_basic_info(id: int, session: Session):
