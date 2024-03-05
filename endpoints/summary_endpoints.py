@@ -110,7 +110,7 @@ async def summary(
     try:
         
         validation_query = text("""
-                                SELECT count(*) FROM itr_26as_details WHERE application_id = :application_id
+                                SELECT count(*) FROM itr_status WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))
@@ -700,6 +700,18 @@ async def summary(
             remark = "Long"
         tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
 
+        for i in no_of_other_sources:
+            other_count = i[0]
+
+        for i in no_of_business_sources:
+            business_count = i[0]
+
+        for i in no_of_overseas_sources:
+            overseas_count = i[0]
+
+        for i in no_of_personal_sources:
+            personal_count = i[0]
+
         exp_summary = ExperienceSummary(
             total_experience=total_duration,
             median_tenure=median_duration,
@@ -715,12 +727,16 @@ async def summary(
         logger.debug(exp_summary)
 
         ###
-        xx = db_backend.exec(
+        compid_result = db_backend.exec(
             text("SELECT compid " "FROM `applicationlist` " "WHERE id = :id").params(
                 id=application_id
             )
         )
-        yy = xx.fetchone()
+        compid = compid_result.fetchone()
+        if compid is None:
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Comp_id is not found for id : {id}")
+        else:
+            comp_id = compid[0]
         # print(yy)
         ##Extracting currentctc, offeredctc from compcanlist
         result = db_backend.exec(
@@ -728,19 +744,17 @@ async def summary(
                 "SELECT currentctc, rolebudget, offeredctc "
                 "FROM `compcanlist` "
                 "WHERE id = :id"
-            ).params(id=yy[0])
+            ).params(id=comp_id)
         )
 
         ctc_info = result.fetchone()
         # print(ctc_info)
-        if ctc_info is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Personal information not found for id {application_id}",
-            )
-
-        currentctc = round(float(ctc_info[0]), 0)
-        offeredctc = round(float(ctc_info[2]), 0)
+        if ctc_info:
+            currentctc = round(float(ctc_info[0]),0)
+            offeredctc = round(float(ctc_info[2]),0)
+        else:
+            currentctc = 0
+            offeredctc = 0
 
         offered_ctc_percentange = round(float((offeredctc / 4000000) * 100), 0)
         if offered_ctc_percentange < 50:
@@ -783,35 +797,47 @@ async def summary(
             ).params(id=application_id)
         )
         pf_summary = pf_result.fetchone()
-        pf = 0
         if pf_summary:
             pf = pf_summary[0] if pf_summary[0] is not None else 0
+        else:
+            pf = -1
+        
         differences = []
 
         for i in range(1, len(monthly_income_raw_data)):
             date, value = monthly_income_raw_data[i]
             previous_value = monthly_income_raw_data[i - 1][1]
-            difference = abs(value - previous_value)
-            differences.append(difference)
+            if previous_value > value:
+                difference = previous_value - value
+                differences.append(difference)
 
-        max_difference_value = int(max(differences))
-        # print(differences)
+        if differences:
+            bonus = sum(differences)
+        else:
+            bonus = 0
+        
         monthly_income_dict = dict(monthly_income_raw_data)
         salary_list = list(monthly_income_dict.values())
-        # print(salary_list)
-        if len(salary_list) != 12:
-            total_salary = int(
-                ((sum(salary_list) - max_difference_value) / len(salary_list)) * 12
-            )
+        
+        if salary_list:
+            if 0 < len(salary_list) <= 4:
+                total_salary=int(sum(salary_list)-bonus)            
+            elif 4<len(salary_list) < 12:
+                total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)
+            elif len(salary_list)== 12:
+                total_salary = int(sum(salary_list)-bonus)
+            else:
+                total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)              
         else:
-            total_salary = int((sum(salary_list)) - max_difference_value)
-
-        net_ctc = total_salary + max_difference_value + pf
+            total_salary = 0
+        
+            
+        net_ctc = total_salary + bonus + pf
         possible_ctc_variation = int(net_ctc * 15 / 100)
         estimated_ctc_range = f"{net_ctc}-{net_ctc+possible_ctc_variation}"
         most_likely_past_ctc = int((net_ctc + possible_ctc_variation / 2))
         gap = int(currentctc - most_likely_past_ctc)
-        ctc_accuracy = min(int((most_likely_past_ctc / currentctc) * 100), 100)
+        ctc_accuracy = min(int((most_likely_past_ctc / currentctc) * 100), 100) if currentctc != 0 else 0
 
         if ctc_accuracy < 80:
             remark = "Incorrect"
@@ -859,7 +885,7 @@ async def summary(
         new_exp = ((offeredctc) * 0.4) + emi
         pre_exp = ((currentctc) * 0.4) + emi
         most_likely_expense = round(float((pre_exp + new_exp) / 2), 0)
-        income_summary_ratio = float((most_likely_expense / currentctc) * 100)
+        income_summary_ratio = float((most_likely_expense / currentctc) * 100) if currentctc != 0 else 0
         if income_summary_ratio < 50:
             income_summary_highlight = (
                 "Household income is very stable with a very high potential of savings."
