@@ -9,11 +9,12 @@ from email_response import send_email
 from models.About import HouseholdIncome, Info
 from starlette.status import HTTP_404_NOT_FOUND
 from tools.benchmark_tools import convert_to_datetime
-
+from starlette import status
+from loguru import logger
 
 about_router = APIRouter()
 
-
+mandatory_fields = ["firstName", "lastName", "phone", "email", "dob", "age", "gender", "marital_status", "education", "experience", "city", "salary"]
 @about_router.get("/about_user/{id}", response_model=Info, tags=["About"])
 async def about_user(
     id: int,
@@ -33,12 +34,16 @@ async def about_user(
 
         personal_info_1 = result_1.fetchone()
 
-        if personal_info_1 is None:
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND,
-                detail=f"Personal information not found for id : {id}",
-            )
-
+        #if personal_info_1 is None:
+        #    raise HTTPException(
+        #        status_code=HTTP_404_NOT_FOUND,
+        #        detail=f"Personal information not found for id : {id}",
+        #    )
+        missing_fields = [field for field, index in zip(mandatory_fields, range(len(mandatory_fields))) if personal_info_1[index] is None]       
+        if missing_fields:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The following mandatory fields are missing: {', '.join(missing_fields)}")
+        
+        
         salary_response = HouseholdIncome(
             candidate_monthly_take=personal_info_1[12],
             spouse_monthly_take=0,
@@ -110,9 +115,25 @@ async def about_user(
                         }
                     )
                     durations.append(0)
-        
-        total_duration = float(sum(durations) / 12)
-        total_duration = round(total_duration, 2)
+        if durations:
+            total_duration = float(sum(durations) / 12)
+            total_duration = round(total_duration, 2)
+        else:
+            total_duration = 0
+
+        if work_exp:
+            logger.debug(work_exp)
+            work_exp = [exp for exp in work_exp if exp.get("start_date") != "N/A" or exp.get("end_date") != "N/A" ]
+            work_exp = sorted(work_exp, key=lambda x: x.get("start_date"))
+            if work_exp:
+                last_job = work_exp[-1]
+                last_job_duration = last_job["totalMonth"]
+            else:
+                last_job_duration = -1
+        else:
+            last_job_duration = -1
+
+
 
         ##extracting role from tenure
 
@@ -121,7 +142,7 @@ async def about_user(
         )
         role = result_role.fetchone()
 
-        from loguru import logger
+        
 
         # logger.debug(f"PERSONAL INFO: {personal_info_1}")
 
@@ -157,11 +178,11 @@ async def about_user(
             education=personal_info_1[9],
             education_institute="N/A",
             location=personal_info_1[11],
-            total_experience=total_duration,
+            total_experience=personal_info_1[10],
             work_industry="N/A",
             skillset="N/A",
             current_role=role[0] if role is not None else "N/A",
-            tenure_last_job=personal_info_1[10],
+            tenure_last_job=last_job_duration,
             household_income=salary_response,
         )
     except Exception as e:

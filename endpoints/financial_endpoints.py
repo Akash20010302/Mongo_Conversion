@@ -368,7 +368,10 @@ async def get_income_summary(
             )
 
         summary_messages = []
-
+        business_growth_percentage = 0
+        personal_growth_percentage = 0
+        other_growth_percentage = 0
+        overseas_growth_percentage = 0
         for i in range(1, len(monthly_income_raw_data)):
             (
                 current_month,
