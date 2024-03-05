@@ -39,37 +39,36 @@ async def get_ctc_info(
 ):
     try:
         ##appid to compid mapping:
-        xx = db_1.exec(
-            text("SELECT compid " "FROM `applicationlist` " "WHERE id = :id").params(
-                id=id
-            )
-        )
-        yy = xx.fetchone()
+        compid_result = db_1.exec(
+            text('SELECT compid '
+                'FROM `applicationlist` '
+                'WHERE id = :id'
+            ).params(id = id)
+        )        
+        compid = compid_result.fetchone()
+        if compid is None:
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Comp_id is not found for id : {id}")
+        else:
+            comp_id = compid[0]
+
 
         result = db_1.exec(
-            text(
-                "SELECT currentctc, rolebudget, offeredctc "
-                "FROM `compcanlist` "
-                "WHERE id = :id"
-            ).params(id=yy[0])
+        text('SELECT currentctc, rolebudget, offeredctc '
+            'FROM `compcanlist` '
+            'WHERE id = :id').params(id = comp_id)
         )
         ctc_info = result.fetchone()
-        # logger.debug(f"OUTPUT: {ctc_info}")
-        if not ctc_info:
-            # logger.debug(f"FAIL: {ctc_info}")
-            raise HTTPException(
-                status_code=HTTP_404_NOT_FOUND,
-                detail=f"Personal information not found for id : {id}",
-            )
-        # logger.debug("PASSED CTC")
-        currentctc = float(ctc_info[0])
-        offeredctc = float(ctc_info[2])
+        if ctc_info:
+            currentctc = round(float(ctc_info[0]),0)
+            offeredctc = round(float(ctc_info[2]),0)
+        else:
+            currentctc = 0
+            offeredctc = 0
 
         difference = offeredctc - currentctc
         change_in_ctc = difference
-        change_percent = (
-            round((float(difference / currentctc) * 100), 0) if currentctc != 0 else 0
-        )
+        change_percent = round((float(difference / currentctc) * 100),0) if currentctc != 0 else 0
+        
 
         if change_percent < 5:
             ctc_growth = [change_percent, "Low"]
@@ -81,7 +80,7 @@ async def get_ctc_info(
             ctc_growth = [change_percent, "Very High"]
         highlight = f"CTC change reflects {ctc_growth[1]} CTC growth"
 
-        offered_ctc_percentange = round(float((offeredctc / 2800000) * 100), 0)
+        offered_ctc_percentange = min(round(float((offeredctc / 2800000) * 100), 0),100)
         if offered_ctc_percentange < 50:
             output = [offered_ctc_percentange, "LOW"]
         elif 50 <= offered_ctc_percentange < 75:
@@ -142,8 +141,10 @@ async def get_ctc_info(
 
         result_1 = db_2.exec(query_1.params(application_id=id))
         summary_1 = result_1.fetchone()
-        # logger.debug(f"PASSED SUMMARY: {summary_1}")
-        total_other_income = summary_1[0] if summary_1[0] is not None else 0.0
+        if summary_1:
+            total_other_income = summary_1[0]
+        else:
+            total_other_income = 0.0
 
         query_2 = text(
             """
@@ -164,6 +165,8 @@ async def get_ctc_info(
                 if row[2] is not None and row[2] != ""
             )
 
+
+        total_other_income = float(total_other_income) if total_other_income is not None else 0.0
         factor = 0.3
         new_exp = ((offeredctc) * 0.4) + emi
         new_increase = round(float(new_exp + (new_exp * factor)), 0)
@@ -176,8 +179,8 @@ async def get_ctc_info(
         exp_change = new_exp - pre_exp
 
         most_likely_expense = round(float((pre_exp + new_exp) / 2), 0)
-        new_ratio = round(float((most_likely_expense / new_income) * 100), 0)
-        pre_ratio = round(float((most_likely_expense / pre_income) * 100), 0)
+        new_ratio = round(float((most_likely_expense / new_income) * 100), 0) if new_income != 0 else 0
+        pre_ratio = round(float((most_likely_expense / pre_income) * 100), 0) if pre_income != 0 else 0
         # print(new_ratio,pre_ratio)
 
         if new_ratio > pre_ratio:
@@ -288,16 +291,17 @@ async def get_ctc_info(
         passbook_raw_data = result.fetchall()
 
         company_data = defaultdict(list)
-        for exp in passbook_raw_data:
-            company_name = exp[0]
-            year = exp[1]
-            month = exp[2]
+        if passbook_raw_data is not None:
+            for exp in passbook_raw_data:
+                company_name = exp[0]
+                year = exp[1]
+                month = exp[2]
 
-            date = await convert_to_datetime(year, month)
-            if date:
-                company_data[company_name].append(date)
-            else:
-                company_data[company_name].append("N/A")
+                date = await convert_to_datetime(year, month)
+                if date:
+                    company_data[company_name].append(date)
+                else:
+                    company_data[company_name].append("N/A")
 
         result = []
         overlapping_durations = []
@@ -305,56 +309,65 @@ async def get_ctc_info(
         durations = []
         # count=0
 
-        for company_name, dates in company_data.items():
-            if dates != "N/A":
-                dates = [date for date in dates if isinstance(date, datetime.datetime)]
-                if dates:
-                    start_date = min(dates)
-                    end_date = max(dates)
-                    duration = (end_date.year - start_date.year) * 12 + (
-                        end_date.month - start_date.month
-                    )
+        if company_data is not None:
+            for company_name, dates in company_data.items():
+                if dates != "N/A":
+                    dates = [date for date in dates if isinstance(date, datetime.datetime)]
+                    if dates:
+                        start_date = min(dates)
+                        end_date = max(dates)
+                        duration = (end_date.year - start_date.year) * 12 + (
+                            end_date.month - start_date.month
+                        )
 
-                    # row_value = 1 if count % 2 == 0 else 2
-                    result.append(
-                        {
-                            # "row": row_value,
-                            "company_name": company_name,
-                            "startYear": start_date.strftime("%m-%d-%Y"),
-                            "endYear": end_date.strftime("%m-%d-%Y"),
-                            "duration": duration,
-                        }
-                    )
-                    # count+=1
-                    durations.append(duration)
-            # else:
-            #    result.append({"company_name": company_name, "start_date": "N/A","end_date": "N/A","duration":"N/A"})
+                        # row_value = 1 if count % 2 == 0 else 2
+                        result.append(
+                            {
+                                # "row": row_value,
+                                "company_name": company_name,
+                                "startYear": start_date.strftime("%m-%d-%Y"),
+                                "endYear": end_date.strftime("%m-%d-%Y"),
+                                "duration": duration,
+                            }
+                        )
+                        # count+=1
+                        durations.append(duration)
+                # else:
+                #    result.append({"company_name": company_name, "start_date": "N/A","end_date": "N/A","duration":"N/A"})
 
-        result = sorted(result, key=lambda x: x.get("startYear", "N/A"))
-        # for i in result:
-        #    row_value = 1 if i%2== 0 else 2
-        #    result.append({"row": row_value})
-        for i, item in enumerate(result):
-            item["row"] = 1 if i % 2 == 0 else 2
-        # result = sorted(result, key=lambda x: (x.get("start_date", "N/A"), x.get("row", 0)))
-        ## for inserting type
-        for i, job in enumerate(result):
-            if i > 0:
-                prev_job = sorted(result, key=lambda x: x.get("startYear", "N/A"))[
-                    i - 1
-                ]
-                if job["startYear"] < prev_job["endYear"]:
-                    job["workType"] = "overlap"
+        if result:
+            result = sorted(result, key=lambda x: x.get("startYear", "N/A"))
+            for i, item in enumerate(result):
+                item["row"] = 1 if i % 2 == 0 else 2
+            # result = sorted(result, key=lambda x: (x.get("start_date", "N/A"), x.get("row", 0)))
+            ## for inserting type
+            for i, job in enumerate(result):
+                if i > 0:
+                    prev_job = sorted(result, key=lambda x: x.get("startYear", "N/A"))[
+                        i - 1
+                    ]
+                    if job["startYear"] < prev_job["endYear"]:
+                        job["workType"] = "overlap"
+                    else:
+                        job["workType"] = "regular"
                 else:
                     job["workType"] = "regular"
-            else:
-                job["workType"] = "regular"
 
-        total_duration = round(float(sum(durations) / 12), 2)
-        total_duration = round(total_duration, 0)
-        total_jobs = len(result)
-        median_duration = int(statistics.median(durations)) if len(durations) else 0
-        average_duration = int(statistics.mean(durations)) if len(durations) else 0
+        if durations:
+            total_duration = round(float(sum(durations)/12),2)
+            total_duration = round(total_duration, 0)
+            median_duration = int(statistics.median(durations))
+            average_duration = int(statistics.mean(durations))
+        else:
+            total_duration = 0
+            median_duration = 0
+            average_duration = 0
+        if result:
+            total_jobs = len(result)
+        else:
+            total_jobs = 0    
+
+
         if average_duration < 15:
             risk_duration = "Very High"
         elif 15 <= average_duration < 35:
@@ -373,7 +386,7 @@ async def get_ctc_info(
         tenure_remarks = f"{name}’s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
 
         # Calculate calculated_work_exp
-        calculated_work_exp = None
+        calculated_work_exp = 0
         logger.debug(total_jobs)
         if total_jobs == 1:
             # If there's only one job, use the duration of that job
@@ -382,25 +395,28 @@ async def get_ctc_info(
         elif total_jobs > 1:
             # If there are multiple jobs, calculate the difference between the start date of the first job
             # and the end date of the last job
-            first_job_start_date = min(result, key=lambda x: x["startYear"])[
-                "startYear"
-            ]
-            last_job_end_date = max(result, key=lambda x: x["endYear"])["endYear"]
-
+            first_job_start_dates = [datetime.datetime.strptime(job["startYear"], "%m-%d-%Y") for job in result]
+            first_job_start_date = min(first_job_start_dates)
+            #last_job_end_date = max(result, key=lambda x: x["endYear"])["endYear"]
+            #last_job_end_date = max(job["endYear"] for job in result)
             # Assuming startYear and endYear are in the format "%m-%d-%Y", convert them to datetime objects
-            first_job_start_date = datetime.datetime.strptime(
-                first_job_start_date, "%m-%d-%Y"
-            )
-            last_job_end_date = datetime.datetime.strptime(
-                last_job_end_date, "%m-%d-%Y"
-            )
-
+            #first_job_start_date = datetime.datetime.strptime(
+            #    first_job_start_date, "%m-%d-%Y"
+            #)
+            #last_job_end_date = datetime.datetime.strptime(
+            #    last_job_end_date, "%m-%d-%Y"
+            #)
+            last_job_end_dates = [datetime.datetime.strptime(job["endYear"], "%m-%d-%Y") for job in result]
+            last_job_end_date = max(last_job_end_dates)
+            
             # Calculate the difference in months
             calculated_work_exp = (
                 last_job_end_date.year - first_job_start_date.year
             ) * 12 + (last_job_end_date.month - first_job_start_date.month)
             calculated_work_exp = round((calculated_work_exp / 12), 1)
-
+            logger.debug(result)
+            logger.debug(first_job_start_date)
+            logger.debug(last_job_end_date)
         tenure = TenureAnalysis(
             work_exp=result,
             avg_tenure=average_duration,

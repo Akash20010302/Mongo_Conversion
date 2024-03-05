@@ -715,12 +715,16 @@ async def summary(
         logger.debug(exp_summary)
 
         ###
-        xx = db_backend.exec(
+        compid_result = db_backend.exec(
             text("SELECT compid " "FROM `applicationlist` " "WHERE id = :id").params(
                 id=application_id
             )
         )
-        yy = xx.fetchone()
+        compid = compid_result.fetchone()
+        if compid is None:
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"Comp_id is not found for id : {id}")
+        else:
+            comp_id = compid[0]
         # print(yy)
         ##Extracting currentctc, offeredctc from compcanlist
         result = db_backend.exec(
@@ -728,20 +732,17 @@ async def summary(
                 "SELECT currentctc, rolebudget, offeredctc "
                 "FROM `compcanlist` "
                 "WHERE id = :id"
-            ).params(id=yy[0])
+            ).params(id=comp_id)
         )
 
         ctc_info = result.fetchone()
         # print(ctc_info)
-        if ctc_info is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Personal information not found for id {application_id}",
-            )
-
-        currentctc = round(float(ctc_info[0]), 0)
-        offeredctc = round(float(ctc_info[2]), 0)
-
+        if ctc_info:
+            currentctc = round(float(ctc_info[0]),0)
+            offeredctc = round(float(ctc_info[2]),0)
+        else:
+            currentctc = 0
+            offeredctc = 0
         offered_ctc_percentange = round(float((offeredctc / 4000000) * 100), 0)
         if offered_ctc_percentange < 50:
             output = "LOW"
@@ -751,6 +752,21 @@ async def summary(
             output = "High"
         else:
             output = "Very High"
+
+        pf_result = db.exec(
+            text(
+                "SELECT employer_total "
+                "FROM epfo_get_passbook_details "
+                "WHERE application_id = :id"
+            ).params(id=application_id)
+        )
+        pf_summary = pf_result.fetchone()
+        if pf_summary:
+            pf = pf_summary[0] if pf_summary[0] is not None else 0
+        else:
+            pf = -1
+
+
 
         monthly_income_query = text(
             """SELECT
@@ -775,43 +791,41 @@ async def summary(
         )
         monthly_income_raw_data = monthly_income_result.fetchall()
 
-        pf_result = db.exec(
-            text(
-                "SELECT employer_total "
-                "FROM epfo_get_passbook_details "
-                "WHERE application_id = :id"
-            ).params(id=application_id)
-        )
-        pf_summary = pf_result.fetchone()
-        pf = 0
-        if pf_summary:
-            pf = pf_summary[0] if pf_summary[0] is not None else 0
+        
         differences = []
 
         for i in range(1, len(monthly_income_raw_data)):
             date, value = monthly_income_raw_data[i]
             previous_value = monthly_income_raw_data[i - 1][1]
-            difference = abs(value - previous_value)
-            differences.append(difference)
+            if previous_value > value:
+                difference = previous_value - value
+                differences.append(difference)
 
-        max_difference_value = int(max(differences))
-        # print(differences)
+        if differences:
+            bonus = sum(differences)
+        else:
+            bonus = 0
+            
         monthly_income_dict = dict(monthly_income_raw_data)
         salary_list = list(monthly_income_dict.values())
-        # print(salary_list)
-        if len(salary_list) != 12:
-            total_salary = int(
-                ((sum(salary_list) - max_difference_value) / len(salary_list)) * 12
-            )
+        if salary_list:
+            if 0 < len(salary_list) <= 4:
+                total_salary=int(sum(salary_list)-bonus)            
+            elif 4<len(salary_list) < 12:
+                total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)
+            elif len(salary_list)== 12:
+                total_salary = int(sum(salary_list)-bonus)
+            else:
+                total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)              
         else:
-            total_salary = int((sum(salary_list)) - max_difference_value)
+            total_salary = 0
 
-        net_ctc = total_salary + max_difference_value + pf
+        net_ctc = total_salary + bonus + pf
         possible_ctc_variation = int(net_ctc * 15 / 100)
         estimated_ctc_range = f"{net_ctc}-{net_ctc+possible_ctc_variation}"
         most_likely_past_ctc = int((net_ctc + possible_ctc_variation / 2))
         gap = int(currentctc - most_likely_past_ctc)
-        ctc_accuracy = min(int((most_likely_past_ctc / currentctc) * 100), 100)
+        ctc_accuracy = min(int((most_likely_past_ctc / currentctc) * 100), 100) if currentctc != 0 else 0
 
         if ctc_accuracy < 80:
             remark = "Incorrect"
@@ -859,7 +873,7 @@ async def summary(
         new_exp = ((offeredctc) * 0.4) + emi
         pre_exp = ((currentctc) * 0.4) + emi
         most_likely_expense = round(float((pre_exp + new_exp) / 2), 0)
-        income_summary_ratio = float((most_likely_expense / currentctc) * 100)
+        income_summary_ratio = float((most_likely_expense / currentctc) * 100) if currentctc != 0 else 0
         if income_summary_ratio < 50:
             income_summary_highlight = (
                 "Household income is very stable with a very high potential of savings."
@@ -924,11 +938,10 @@ async def summary(
             # Assign "N/A" to each column
             contact_info_3 = ["N/A"] * len(result_3.keys())
         else:
+            contact_info_3 = [value if value is not None and value != "" else "N/A" for value in contact_info_3]
             # Check and replace None values or empty strings with "N/A"
-            for column_name in result_3.keys():
-                value = getattr(contact_info_3, column_name)
-                if value is None or value == "":
-                    setattr(contact_info_3, column_name, "N/A")
+            #contact_info_3 = [getattr(contact_info_3, column_name, "N/A") for column_name in result_3.keys()]
+        
         (
             name_flag,
             pan_match,

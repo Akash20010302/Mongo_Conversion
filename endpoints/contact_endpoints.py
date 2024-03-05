@@ -48,22 +48,20 @@ async def get_combined_info(
             ).params(id=id)
         )
         contact_info_3 = result_3.fetchone()
-
-        if contact_info_3 is None:
-            raise HTTPException(
-                status_code=404, detail=f"Personal information not found for id {id}"
-            )
+        logger.debug(contact_info_3)
+        #if contact_info_3 is None:
+        #    raise HTTPException(
+        #        status_code=404, detail=f"Personal information not found for id {id}"
+        #    )
 
         if contact_info_3 is None or all(value is None for value in contact_info_3):
             # Assign "N/A" to each column
             contact_info_3 = ["N/A"] * len(result_3.keys())
         else:
+            contact_info_3 = [value if value is not None and value != "" else "N/A" for value in contact_info_3]
             # Check and replace None values or empty strings with "N/A"
-            for column_name in result_3.keys():
-                value = getattr(contact_info_3, column_name)
-                if value is None or value == "":
-                    setattr(contact_info_3, column_name, "N/A")
-
+            #contact_info_3 = [getattr(contact_info_3, column_name, "N/A") for column_name in result_3.keys()]
+        logger.debug(contact_info_3)
         (
             name_flag,
             pan_match,
