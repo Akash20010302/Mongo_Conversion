@@ -17,7 +17,7 @@ async def get_income_summary(
 ):
     try:
         validation_query = text("""
-                                SELECT count(*) FROM itr_26as_details WHERE application_id = :application_id
+                                SELECT count(*) FROM itr_status WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))
@@ -372,6 +372,7 @@ async def get_income_summary(
         personal_growth_percentage = 0
         other_growth_percentage = 0
         overseas_growth_percentage = 0
+        
         for i in range(1, len(monthly_income_raw_data)):
             (
                 current_month,

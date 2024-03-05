@@ -32,7 +32,7 @@ async def get_career_summary(
 ):
     try:
         validation_query = text("""
-                                SELECT count(*) FROM epfo_get_passbook_details WHERE application_id = :application_id
+                                SELECT count(*) FROM epfo_status_uan WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))

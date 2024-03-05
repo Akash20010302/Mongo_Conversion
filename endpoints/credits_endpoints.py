@@ -63,7 +63,7 @@ async def get_career_summary(
 ):
     try:
         validation_query = text("""
-                                SELECT count(*) FROM credits_retailaccountdetails WHERE application_id = :application_id
+                                SELECT count(*) FROM epfo_status_uan WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))
@@ -208,13 +208,19 @@ async def get_career_summary(
 
         # Fetch results
         active_accounts_data = result_accounts.fetchall()
+        logger.debug(active_accounts_data)
         summary_data = result_summary.fetchone()
+        logger.debug(summary_data)
         enquiries_data = result_enquiries.fetchone()
+        logger.debug(enquiries_data)
         credit_score = result_credit_score.fetchone()
+        logger.debug(credit_score)
         installment_data = result_installment.fetchone()
-        open_data = result_open.fetchone()
-        close_data = result_close.fetchone()
         logger.debug(installment_data)
+        open_data = result_open.fetchone()
+        logger.debug(open_data)
+        close_data = result_close.fetchone()
+        logger.debug(close_data)
         # Extract information
         active_accounts = [row[0] for row in active_accounts_data]
         active_account_count = len(active_accounts)

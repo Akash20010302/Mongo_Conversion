@@ -5,11 +5,11 @@ bind = "0.0.0.0:8080"  # Bind to all interfaces on port 8000
 backlog = 2048  # The maximum number of pending connections
 
 # Worker processes
-workers = 3  # Number of worker processes
+workers = 2  # Number of worker processes
 worker_class = "uvicorn.workers.UvicornWorker"  # Use Uvicorn workers
 threads = 2  # Number of threads per worker
 worker_connections = 1000  # The maximum number of simultaneous clients
-timeout = 40  # Workers silent for more than this many seconds are killed and restarted
+timeout = 300  # Workers silent for more than this many seconds are killed and restarted
 keepalive = 2  # The number of seconds to wait for requests on a Keep-Alive connection
 
 # Security

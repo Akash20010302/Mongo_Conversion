@@ -110,7 +110,7 @@ async def summary(
     try:
         
         validation_query = text("""
-                                SELECT count(*) FROM itr_26as_details WHERE application_id = :application_id
+                                SELECT count(*) FROM itr_status WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))
@@ -700,6 +700,18 @@ async def summary(
             remark = "Long"
         tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
 
+        for i in no_of_other_sources:
+            other_count = i[0]
+
+        for i in no_of_business_sources:
+            business_count = i[0]
+
+        for i in no_of_overseas_sources:
+            overseas_count = i[0]
+
+        for i in no_of_personal_sources:
+            personal_count = i[0]
+
         exp_summary = ExperienceSummary(
             total_experience=total_duration,
             median_tenure=median_duration,
@@ -743,6 +755,7 @@ async def summary(
         else:
             currentctc = 0
             offeredctc = 0
+
         offered_ctc_percentange = round(float((offeredctc / 4000000) * 100), 0)
         if offered_ctc_percentange < 50:
             output = "LOW"
@@ -790,7 +803,6 @@ async def summary(
             monthly_income_query.params(application_id=application_id)
         )
         monthly_income_raw_data = monthly_income_result.fetchall()
-
         
         differences = []
 
@@ -808,6 +820,7 @@ async def summary(
             
         monthly_income_dict = dict(monthly_income_raw_data)
         salary_list = list(monthly_income_dict.values())
+
         if salary_list:
             if 0 < len(salary_list) <= 4:
                 total_salary=int(sum(salary_list)-bonus)            
@@ -819,7 +832,6 @@ async def summary(
                 total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)              
         else:
             total_salary = 0
-
         net_ctc = total_salary + bonus + pf
         possible_ctc_variation = int(net_ctc * 15 / 100)
         estimated_ctc_range = f"{net_ctc}-{net_ctc+possible_ctc_variation}"
