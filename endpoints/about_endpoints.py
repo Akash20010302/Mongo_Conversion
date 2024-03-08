@@ -41,7 +41,8 @@ async def about_user(
         #    )
         missing_fields = [field for field, index in zip(mandatory_fields, range(len(mandatory_fields))) if personal_info_1[index] is None]       
         if missing_fields:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The following mandatory fields are missing: {', '.join(missing_fields)}")
+            missing = ', '.join(missing_fields)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The following mandatory fields are missing: {missing}")
         
         
         salary_response = HouseholdIncome(

@@ -1,3 +1,5 @@
+import os
+import time
 from fastapi.responses import JSONResponse
 from loguru import logger
 
@@ -20,6 +22,11 @@ from endpoints.share_endpoints import share_router
 from endpoints.newhire_endpoints import new_hire_router
 from endpoints.credits_endpoints import credits_router
 from endpoints.financial_endpoints import financial_router
+
+os.environ['TZ'] = 'Asia/Kolkata'
+time.tzset()
+
+logger.add("logs/logger_log.log",rotation="500 MB",format="{time:DD-MM-YYYY HH:mm:ss} | {level: <8} | {message}", backtrace=True, diagnose=True)
 
 try:
     app = FastAPI()

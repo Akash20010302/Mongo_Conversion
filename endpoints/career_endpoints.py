@@ -32,7 +32,7 @@ async def get_career_summary(
 ):
     try:
         validation_query = text("""
-                                SELECT count(*) FROM epfo_get_passbook_details WHERE application_id = :application_id
+                                SELECT count(*) FROM epfo_status_uan WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))
@@ -186,7 +186,13 @@ async def get_career_summary(
         for exp in resume_raw_data:
             company = exp[0]
             from_date = datetime.strptime(exp[1], "%Y-%m-%d")
-            to_date = datetime.strptime(exp[2], "%Y-%m-%d")
+            if exp[2].lower() == "current":
+                to_date = datetime.now()
+                to_date = datetime.date(to_date)
+                logger.debug(to_date)
+            else:
+                to_date = datetime.strptime(exp[2], "%Y-%m-%d")
+            logger.debug(to_date)
             total_months = (to_date.year - from_date.year) * 12 + (
                 from_date.month - to_date.month
             )

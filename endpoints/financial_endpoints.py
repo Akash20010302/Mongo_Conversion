@@ -291,7 +291,7 @@ async def get_income_summary(
             "personal_income_percentage": round(personal_income_percentage),
         }
 
-        income_score_percentage = max(0, 100 - 2 * (other_income_accounts)) - 10 * (
+        income_score_percentage = max(0, 100 - 2 * (other_income_accounts + personal_income_accounts)) - 10 * (
             len(overseas_income_sources) + business_income_accounts
         )
         if income_score_percentage >= 95:
