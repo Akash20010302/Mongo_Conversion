@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from models.Form import Form
 from models.Tenure import Tenure
 from repos.application_repos import get_company_name
-from repos.kyc_repos import find_kyc
+from repos.kyc_repos import find_kyc, find_panlite
 
 
 def convert_to_basic_info(res, res2, session):
@@ -90,6 +90,7 @@ def convert_to_basic_info(res, res2, session):
 #    return s
 async def convert_to_identification(res):
     res2 = await find_kyc(res.id) if res else None
+    res3 = await find_panlite(res.id) if res else None
     
     masked_aadhar = None
     masked_pan = None
@@ -108,7 +109,11 @@ async def convert_to_identification(res):
         # masked_govt_aadhar = "XXXX-XXXX-" + res2.kyc_details_aadhaar_number[-4:] if res2.kyc_details_aadhaar_number else "N/A"
         # masked_govt_pan = res2.kyc_details_pan_number[0] + "*" * (len(res2.kyc_details_pan_number) - 2) + res2.kyc_details_pan_number[-1] if res2.kyc_details_pan_number else "N/A"
         masked_govt_aadhar = "XXXX-XXXX-" + res2.aadhaar_aadhaar_number[-4:] if res2.aadhaar_aadhaar_number else "N/A"
-        masked_govt_pan = res2.pan_pan[0] + "*" * (len(res2.pan_pan) - 2) + res2.pan_pan[-1] if res2.pan_pan else "N/A"
+        #masked_govt_pan = res2.pan_pan[0] + "*" * (len(res2.pan_pan) - 2) + res2.pan_pan[-1] if res2.pan_pan else "N/A"
+    if res3:
+        masked_govt_pan = res3.pan_number[0] + "*" * (len(res3.pan_number) - 2) + res3.pan_number[-1] if res3.pan_number else "N/A"
+
+
 
     s = {
         "Aadhar_Number": masked_aadhar,

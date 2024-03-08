@@ -74,3 +74,15 @@ class itr_download_profile(SQLModel,table=True):
     
     class Config:
         from_attributes = True
+
+
+class Panlite_data(SQLModel,table=True):
+    application_id: int = Field(primary_key=True) 
+    status_code : int
+    success : Optional[bool]
+    message : Optional[str] 
+    message_code : Optional[str] 
+    client_id : Optional[str]
+    pan_number : Optional[str]
+    full_name : Optional[str] 
+    category : Optional[str]        
