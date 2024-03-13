@@ -17,7 +17,7 @@ async def get_income_summary(
 ):
     try:
         validation_query = text("""
-                                SELECT count(*) FROM itr_26as_details WHERE application_id = :application_id
+                                SELECT count(*) FROM itr_status WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))
@@ -515,9 +515,7 @@ async def get_income_summary(
             number_of_personal_savings_account=personal_income_accounts,
             number_of_overseas_acount=len(overseas_income_sources),
             total_number_of_income_sources=total_number_of_income_sources,
-            red_flag=other_income_accounts
-            + business_income_accounts
-            + personal_income_accounts
+            red_flag=business_income_accounts
             + len(overseas_income_sources),
             total_salary_received=total_salary,
             total_other_income=total_other_income,

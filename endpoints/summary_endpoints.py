@@ -110,7 +110,7 @@ async def summary(
     try:
         
         validation_query = text("""
-                                SELECT count(*) FROM itr_26as_details WHERE application_id = :application_id
+                                SELECT count(*) FROM itr_status WHERE application_id = :application_id
                                 """)
         
         valid_count = db.exec(validation_query.params(application_id=application_id))
