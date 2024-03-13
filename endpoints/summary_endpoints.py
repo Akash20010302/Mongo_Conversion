@@ -466,7 +466,13 @@ async def summary(
         for exp in resume_raw_data:
             company = exp[0]
             from_date = datetime.datetime.strptime(exp[1], "%Y-%m-%d")
-            to_date = datetime.datetime.strptime(exp[2], "%Y-%m-%d")
+            if exp[2].lower() == "current":
+                to_date = datetime.datetime.now()
+                to_date = datetime.datetime.date(to_date)
+                logger.debug(to_date)
+            else:
+                to_date = datetime.datetime.strptime(exp[2], "%Y-%m-%d")
+            logger.debug(to_date)
             total_months = (to_date.year - from_date.year) * 12 + (
                 from_date.month - to_date.month
             )
@@ -658,7 +664,9 @@ async def summary(
             highlight.append(
                 f"{len(overlapping_durations)} situation of dual employment found (Red Flag)"
             )
-
+        dual_employment_text="Bad" if len(overlapping_durations) > 0 else "Good"
+        overlapping_contract_text="Bad" if business_count > 0 else "Good"
+        overlapping_contract=business_count
         # business_income=business_count+overseas_count+other_count
 
         if business_count == 0:
@@ -717,9 +725,9 @@ async def summary(
             median_tenure=median_duration,
             median_tenure_text=risk_duration,
             dual_employment=len(overlapping_durations),
-            dual_employment_text="Bad" if len(overlapping_durations) > 0 else "Good",
-            overlapping_contract=business_count,
-            overlapping_contract_text="Bad" if business_count > 0 else "Good",
+            dual_employment_text=dual_employment_text,
+            overlapping_contract=overlapping_contract,
+            overlapping_contract_text=overlapping_contract_text,
             tenure_highlights=tenure_remarks,
             exp_highlights=highlight,
         )
