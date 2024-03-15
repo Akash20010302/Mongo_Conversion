@@ -65,7 +65,7 @@ async def get_ctc_info(
         else:
             currentctc = 0
             offeredctc = 0
-        lower_limit = random.randint(offeredctc*(0.6),offeredctc*(0.7))
+        lower_limit = random.randint(offeredctc*(0.2),offeredctc*(0.6))
         upper_limit = random.randint(offeredctc*(1.2),offeredctc*(1.5))
         
         difference = offeredctc - currentctc
