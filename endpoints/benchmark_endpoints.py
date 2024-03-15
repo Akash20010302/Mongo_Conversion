@@ -1,6 +1,7 @@
 from collections import defaultdict
 import datetime
 import math
+import random
 import statistics
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
@@ -64,7 +65,9 @@ async def get_ctc_info(
         else:
             currentctc = 0
             offeredctc = 0
-
+        lower_limit = random.randint(offeredctc*(0.2),offeredctc*(0.6))
+        upper_limit = random.randint(offeredctc*(1.2),offeredctc*(1.5))
+        
         difference = offeredctc - currentctc
         change_in_ctc = difference
         change_percent = round((float(difference / currentctc) * 100),0) if currentctc != 0 else 0
@@ -80,7 +83,7 @@ async def get_ctc_info(
             ctc_growth = [change_percent, "Very High"]
         highlight = f"CTC change reflects {ctc_growth[1]} CTC growth"
 
-        offered_ctc_percentange = min(round(float((offeredctc / 2800000) * 100), 0),100)
+        offered_ctc_percentange = min(round(float((offeredctc / upper_limit) * 100), 0),100) if upper_limit != 0 else 0
         if offered_ctc_percentange < 50:
             output = [offered_ctc_percentange, "LOW"]
         elif 50 <= offered_ctc_percentange < 75:
@@ -90,8 +93,8 @@ async def get_ctc_info(
         else:
             output = [offered_ctc_percentange, "Very High"]
 
-        currentctc_indicator = await get_indicator(currentctc)
-        offeredctc_indicator = await get_indicator(offeredctc)
+        currentctc_indicator = await get_indicator(currentctc,lower_limit,upper_limit)
+        offeredctc_indicator = await get_indicator(offeredctc,lower_limit,upper_limit)
         risk_ = f"{offeredctc_indicator[0]} Cost to the Company"
 
         ##extracting name
@@ -102,8 +105,8 @@ async def get_ctc_info(
         name = firstname[0]
         # logger.debug("PASSED FIRST NAME")
         ##payanalysis
-        current_percentile = ((currentctc - 1200000) / (2800000 - 1200000)) * 100
-        offered_percentile = ((offeredctc - 1200000) / (2800000 - 1200000)) * 100
+        current_percentile = round(((currentctc - lower_limit) / (upper_limit - lower_limit)) * 100,2) if (upper_limit-lower_limit) != 0 else 0
+        offered_percentile = round(((offeredctc - lower_limit) / (upper_limit - lower_limit)) * 100,2) if (upper_limit-lower_limit) != 0 else 0
         ## to do-0-20= minor
         # 20-30= moderate
         # 30-50= major
@@ -214,7 +217,7 @@ async def get_ctc_info(
         else:
             expense_income_remark = f"{name}’s Expense to Income ratio is changing from {pre_ratio}%({pre_ratio_indicator[0]}) to {new_ratio}%({new_ratio_indicator[0]}). This will be considered as a {expense_remark} change in Family’s Financial position."
 
-        idealctcband = IdealCtcBand(lower=1200000, upper=2800000)
+        idealctcband = IdealCtcBand(lower=lower_limit, upper=upper_limit)
         estimated_range = estimatedExpense(lower=new_decrease, upper=new_increase)
 
         new_response = NewResponse(

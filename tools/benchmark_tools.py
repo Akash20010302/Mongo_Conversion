@@ -1,9 +1,9 @@
 from datetime import datetime
 
 
-async def get_indicator(value: float) -> str:
+async def get_indicator(value: float,lower_limit: float,upper_limit: float) -> str:
     """Determine the indicator for the given value."""
-    x = ((value - 800000) / (4000000 - 800000)) * 100
+    x = round(((value - lower_limit) / (upper_limit - lower_limit)) * 100,2)
 
     if x < 20:
         if x <= 0:
