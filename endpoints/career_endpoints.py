@@ -1,8 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import Session
 from sqlalchemy.sql import text
 from fuzzywuzzy import fuzz
 from loguru import logger
@@ -278,7 +277,7 @@ async def get_career_summary(
         if gaps_tenure:
             all_exp_tenure += gaps_tenure
             
-        date_mismatch = 0
+        date_mismatch = []
         
         if work_exp and company_data:
             
@@ -301,17 +300,14 @@ async def get_career_summary(
                                 from_date.month - to_date.month
                                 )
                                 if total_months_start >1 or total_months_end >1: 
-                                    date_mismatch += 1 
+                                    date_mismatch.append(govt.get('company_name'))
+
+        logger.debug(date_mismatch)
         
         all_experiences_sorted_tenure = sorted(
             all_exp_tenure, key=lambda x: x.get("start_date", "N/A")
         )
 
-        other_income_query = text(
-            """
-                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE FROM itr_26as_details WHERE section_1 IN('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') AND application_id = :application_id
-                                    """
-        )
 
         business_income_query = text(
             """
@@ -325,30 +321,17 @@ async def get_career_summary(
                                     """
         )
 
-        personal_income_query = text(
-            """
-                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE FROM itr_26as_details WHERE section_1 IN('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') AND application_id = :application_id
-                                    """
-        )
 
-        other_income = db.exec(other_income_query.params(application_id=application_id))
+        
         business_income = db.exec(
             business_income_query.params(application_id=application_id)
         )
         overseas_income = db.exec(
             overseas_income_query.params(application_id=application_id)
         )
-        personal_income = db.exec(
-            personal_income_query.params(application_id=application_id)
-        )
-
-        no_of_other_sources = other_income.fetchall()
+        
         no_of_business_sources = business_income.fetchall()
         no_of_overseas_sources = overseas_income.fetchall()
-        no_of_personal_sources = personal_income.fetchall()
-
-        for i in no_of_other_sources:
-            other_count = i[0]
 
         for i in no_of_business_sources:
             business_count = i[0]
@@ -356,18 +339,13 @@ async def get_career_summary(
         for i in no_of_overseas_sources:
             overseas_count = i[0]
 
-        for i in no_of_personal_sources:
-            personal_count = i[0]
 
         red_flag = (
             len(overlapping_durations)
             + business_count
-            + other_count
             + overseas_count
-            + personal_count
-            + date_mismatch
         )
-        discrepancies = len(overlapping_gaps)
+        discrepancies = len(overlapping_gaps) + len(date_mismatch)
         good_to_know = len(gaps)
 
         meter = max(0, int(100 - discrepancies * 2 - red_flag * 10))
@@ -428,16 +406,25 @@ async def get_career_summary(
 
         if business_count == 0:
             business_count = "No"
-        if other_count == 0:
-            other_count = "No"
         if overseas_count == 0:
             overseas_count = "No"
-        if personal_count == 0:
-            personal_count = "No"
 
         highlight.append(
-            f"{business_count} situations of Business, {overseas_count} situations of overseas, {personal_count} situations of personal and {other_count} situations of other Income identified that could be related to moonlighting (Red Flag)"
+            f"{business_count} situations of Business and {overseas_count} situations of overseas Income identified that could be related to moonlighting (Red Flag)"
         )
+
+        if len(date_mismatch) == 1:
+            highlight.append(f"For {date_mismatch[0]}, a mismatch is found between the joining date or exit date in the government document and the resume.")
+        elif len(date_mismatch) >1:
+            companies = ""
+            for i in range(len(date_mismatch)-1):
+                companies = companies + " " + date_mismatch[i]
+            companies = companies + " and " + date_mismatch[-1]
+           
+            highlight.append(f"For{companies}, mismatches are found between the joining date or exit date in the government document and the resume.")
+
+        if len(overlapping_gaps) >0:
+            highlight.append(f"There are gaps in the goverment documents but not in the resume.")
 
         if flag == True:
             if len(companies_without_dates) > 1:
