@@ -1,5 +1,6 @@
 from collections import defaultdict
 import datetime
+import random
 import statistics
 import traceback
 from sqlmodel import Session
@@ -751,7 +752,10 @@ async def summary(
         else:
             currentctc = 0
             offeredctc = 0
-        offered_ctc_percentange = round(float((offeredctc / 4000000) * 100), 0)
+        lower_limit = random.randint(offeredctc*(0.2),offeredctc*(0.6))
+        upper_limit = random.randint(offeredctc*(1.2),offeredctc*(1.5))
+        
+        offered_ctc_percentange = min(round(float((offeredctc / upper_limit) * 100), 0),100) if upper_limit != 0 else 0
         if offered_ctc_percentange < 50:
             output = "LOW"
         elif 50 <= offered_ctc_percentange < 75:
@@ -894,7 +898,7 @@ async def summary(
             income_summary_highlight = "Household income is not stable."
 
         # response
-        idealctc = Ideal_ctc(lower=800000, upper=4000000)
+        idealctc = Ideal_ctc(lower=lower_limit, upper=upper_limit)
         offered_ctc_summary = offered_past_ctc_summary(
             declared_past_ctc=currentctc,
             declared_past_ctc_remark=remark,
