@@ -125,7 +125,7 @@ async def summary(
                 COUNT(DISTINCT CASE WHEN section_1 = '192' THEN deductor_tan_no END) AS salary_accounts,
                 COUNT(DISTINCT CASE WHEN section_1 IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') THEN deductor_tan_no END) AS other_income_accounts,
                 COUNT(DISTINCT CASE WHEN section_1 IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') THEN deductor_tan_no END) AS business_income_accounts,
-                COUNT(DISTINCT CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') THEN deductor_tan_no END) AS personal_income_accounts,
+                COUNT(DISTINCT CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194LD') THEN deductor_tan_no END) AS personal_income_accounts,
                 SUM(CASE WHEN section_1 LIKE '192%' THEN paid_credited_amt END) AS total_salary,
                 SUM(CASE WHEN section_1 IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') THEN 
                         CASE 
@@ -144,7 +144,7 @@ async def summary(
                             ELSE paid_credited_amt
                         END
                 END) AS total_business_income,
-                SUM(CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') THEN 
+                SUM(CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194LD') THEN 
                         CASE
                             WHEN section_1 = '192A' THEN paid_credited_amt / 0.1
                             ELSE paid_credited_amt
@@ -178,7 +178,7 @@ async def summary(
                                         END) AS overseas_income_amount,
                                         deductor_tan_no
                                     FROM itr_26as_details
-                                    WHERE application_id = :application_id AND section_1 IN ('206CQ', '206CO')
+                                    WHERE application_id = :application_id AND section_1 IN ('206CQ', '206CO') AND transaction_dt >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
                                     GROUP BY month_year  
         """
         )
@@ -561,11 +561,33 @@ async def summary(
         if gaps_tenure:
             all_exp_tenure += gaps_tenure
 
-        other_income_query = text(
-            """
-                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE FROM itr_26as_details WHERE section_1 IN('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') AND application_id = :application_id
-                                    """
-        )
+        date_mismatch = []
+        
+        if work_exp and company_data:
+            
+            for govt in work_exp:
+                if govt.get("start_date") != "N/A" and govt.get("end_date") != "N/A":
+                    for resume in company_data:
+                        if resume.get("start_date") != "N/A" and resume.get("end_date") != "N/A":
+                            logger.debug(f"{govt.get('company_name').lower()},{resume.get('company_name').lower()}:{fuzz.partial_ratio(govt.get('company_name').lower(),resume.get('company_name').lower())}")
+                            if fuzz.partial_ratio(govt.get("company_name").lower(),resume.get("company_name").lower())>=80:
+                                from_date = datetime.datetime.strptime(govt.get("start_date"), "%m-%d-%Y")
+                                logger.debug(from_date)
+                                to_date = datetime.datetime.strptime(resume.get("start_date"), "%m-%d-%Y")
+                                logger.debug(to_date)
+                                total_months_start = abs(to_date.year - from_date.year) * 12 + abs(
+                                from_date.month - to_date.month
+                                )
+                                from_date = datetime.datetime.strptime(govt.get("end_date"), "%m-%d-%Y")
+                                to_date = datetime.datetime.strptime(resume.get("end_date"), "%m-%d-%Y")
+                                total_months_end = abs(to_date.year - from_date.year) * 12 + abs(
+                                from_date.month - to_date.month
+                                )
+                                if total_months_start >1 or total_months_end >1: 
+                                    date_mismatch.append(govt.get('company_name'))
+
+        logger.debug(date_mismatch)
+        
 
         business_income_query = text(
             """
@@ -579,47 +601,33 @@ async def summary(
                                     """
         )
 
-        personal_income_query = text(
-            """
-                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE FROM itr_26as_details WHERE section_1 IN('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') AND application_id = :application_id
-                                    """
-        )
-        other_income = db.exec(other_income_query.params(application_id=application_id))
+
+        
         business_income = db.exec(
             business_income_query.params(application_id=application_id)
         )
         overseas_income = db.exec(
             overseas_income_query.params(application_id=application_id)
         )
-        personal_income = db.exec(
-            personal_income_query.params(application_id=application_id)
-        )
 
-        no_of_other_sources = other_income.fetchall()
         no_of_business_sources = business_income.fetchall()
         no_of_overseas_sources = overseas_income.fetchall()
-        no_of_personal_sources = personal_income.fetchall()
 
-        for i in no_of_other_sources:
-            other_count = i[0]
-
+     
         for i in no_of_business_sources:
             business_count = i[0]
 
         for i in no_of_overseas_sources:
             overseas_count = i[0]
 
-        for i in no_of_personal_sources:
-            personal_count = i[0]
+ 
 
         red_flag = (
             len(overlapping_durations)
             + business_count
-            + other_count
             + overseas_count
-            + personal_count
         )
-        discrepancies = len(overlapping_gaps)
+        discrepancies = len(overlapping_gaps) + len(date_mismatch)
         good_to_know = len(gaps)
 
         if len(all_exp_govt_docs):
@@ -672,15 +680,11 @@ async def summary(
 
         if business_count == 0:
             business_count = "No"
-        if other_count == 0:
-            other_count = "No"
         if overseas_count == 0:
             overseas_count = "No"
-        if personal_count == 0:
-            personal_count = "No"
-
+            
         highlight.append(
-            f"{business_count} situations of Business, {overseas_count} situations of overseas, {personal_count} situations of personal and {other_count} situations of other Income identified that could be related to moonlighting (Red Flag)"
+            f"{business_count} situations of Business and {overseas_count} situations of overseas Income identified that could be related to moonlighting (Red Flag)"
         )
 
         if flag == True:
@@ -693,21 +697,36 @@ async def summary(
                 highlight.append(
                     f"No starting date and ending date of employment found for {companies_without_dates[0]} in government documents"
                 )
+        if len(date_mismatch) == 1:
+            highlight.append(f"For {date_mismatch[0]}, a mismatch is found between the joining date or exit date in the government document and the resume.")
+        elif len(date_mismatch) >1:
+            companies = ', '.join(date_mismatch[:-1]) + ' and ' + date_mismatch[-1]
+           
+            highlight.append(f"For {companies} mismatches are found between the joining date or exit date in the government document and the resume.")
+
+        if len(overlapping_gaps) >0:
+            highlight.append(f"There are gaps in the goverment documents but not in the resume.")
 
         first_name = db_backend.exec(
-            text("SELECT firstName " "FROM `form` " "WHERE appid = :id").params(
+            text("SELECT firstName,gender " "FROM `form` " "WHERE appid = :id").params(
                 id=application_id
             )
         )
         firstname = first_name.fetchone()
         name = firstname[0]
+        gender = firstname[1]
         if average_duration < 24:
             remark = "short"
         elif 24 <= average_duration <= 60:
             remark = "average"
         else:
             remark = "Long"
-        tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
+        if gender == "M" or gender == "Male":
+            tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
+        elif gender == "F" or gender == "Female":
+            tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to her personal performance or market opportunity."
+        else:
+            tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his/her personal performance or market opportunity."
 
         exp_summary = ExperienceSummary(
             total_experience=total_duration,
