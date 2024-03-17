@@ -412,16 +412,13 @@ async def get_career_summary(
         highlight.append(
             f"{business_count} situations of Business and {overseas_count} situations of overseas Income identified that could be related to moonlighting (Red Flag)"
         )
-
+        
         if len(date_mismatch) == 1:
             highlight.append(f"For {date_mismatch[0]}, a mismatch is found between the joining date or exit date in the government document and the resume.")
         elif len(date_mismatch) >1:
-            companies = ""
-            for i in range(len(date_mismatch)-1):
-                companies = companies + " " + date_mismatch[i]
-            companies = companies + " and " + date_mismatch[-1]
+            companies = ', '.join(date_mismatch[:-1]) + ' and ' + date_mismatch[-1]
            
-            highlight.append(f"For{companies}, mismatches are found between the joining date or exit date in the government document and the resume.")
+            highlight.append(f"For {companies} mismatches are found between the joining date or exit date in the government document and the resume.")
 
         if len(overlapping_gaps) >0:
             highlight.append(f"There are gaps in the goverment documents but not in the resume.")
