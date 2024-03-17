@@ -731,6 +731,18 @@ async def summary(
         else:
             tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his/her personal performance or market opportunity."
 
+        for i in no_of_other_sources:
+            other_count = i[0]
+
+        for i in no_of_business_sources:
+            business_count = i[0]
+
+        for i in no_of_overseas_sources:
+            overseas_count = i[0]
+
+        for i in no_of_personal_sources:
+            personal_count = i[0]
+
         exp_summary = ExperienceSummary(
             total_experience=total_duration,
             median_tenure=median_duration,
@@ -779,6 +791,7 @@ async def summary(
         upper_limit = min(int(random.randint(offeredctc*12,offeredctc*15)/10),5000000)
         
         offered_ctc_percentange = min(round(float((offeredctc / upper_limit) * 100), 0),100) if upper_limit != 0 else 0
+
         if offered_ctc_percentange < 50:
             output = "LOW"
         elif 50 <= offered_ctc_percentange < 75:
@@ -825,7 +838,6 @@ async def summary(
             monthly_income_query.params(application_id=application_id)
         )
         monthly_income_raw_data = monthly_income_result.fetchall()
-
         
         differences = []
 
@@ -843,6 +855,7 @@ async def summary(
             
         monthly_income_dict = dict(monthly_income_raw_data)
         salary_list = list(monthly_income_dict.values())
+
         if salary_list:
             if 0 < len(salary_list) <= 4:
                 total_salary=int(sum(salary_list)-bonus)            
@@ -854,7 +867,6 @@ async def summary(
                 total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)              
         else:
             total_salary = 0
-
         net_ctc = total_salary + bonus + pf
         possible_ctc_variation = int(net_ctc * 15 / 100)
         estimated_ctc_range = f"{net_ctc}-{net_ctc+possible_ctc_variation}"

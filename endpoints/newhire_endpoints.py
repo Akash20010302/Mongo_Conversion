@@ -41,6 +41,12 @@ async def get_past_ctc_accuracy(
         )
 
         ctc_info = result.fetchone()
+        if ctc_info:
+            currentctc = round(float(ctc_info[0]),0)
+            offeredctc = round(float(ctc_info[2]),0)
+        else:
+            currentctc = 0
+            offeredctc = 0
 
         if ctc_info:
             currentctc = round(float(ctc_info[0]),0)
@@ -61,7 +67,6 @@ async def get_past_ctc_accuracy(
             pf = pf_summary[0] if pf_summary[0] is not None else 0
         else:
             pf = -1
-
 
         monthly_income_query = text(
             """SELECT
@@ -87,7 +92,7 @@ async def get_past_ctc_accuracy(
         monthly_income_raw_data = monthly_income_result.fetchall()
 
         differences = []
-
+        
         for i in range(1, len(monthly_income_raw_data)):
             date, value = monthly_income_raw_data[i]
             previous_value = monthly_income_raw_data[i - 1][1]
@@ -103,6 +108,7 @@ async def get_past_ctc_accuracy(
         monthly_income_dict = dict(monthly_income_raw_data)
         salary_list = list(monthly_income_dict.values())
         # print(salary_list)
+
         if salary_list:
             if 0 < len(salary_list) <= 4:
                 total_salary=int(sum(salary_list)-bonus)            
@@ -114,7 +120,6 @@ async def get_past_ctc_accuracy(
                 total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)              
         else:
             total_salary = 0
-
         net_ctc = total_salary + bonus + pf
         possible_ctc_variation = int(net_ctc * 15 / 100)
         estimated_ctc_range = CtcRange(

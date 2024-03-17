@@ -385,6 +385,7 @@ async def get_income_summary(
         personal_growth_percentage = 0
         other_growth_percentage = 0
         overseas_growth_percentage = 0
+        
         for i in range(1, len(monthly_income_raw_data)):
             (
                 current_month,
