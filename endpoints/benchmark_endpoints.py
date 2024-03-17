@@ -65,8 +65,9 @@ async def get_ctc_info(
         else:
             currentctc = 0
             offeredctc = 0
-        lower_limit = random.randint(offeredctc*(0.2),offeredctc*(0.6))
-        upper_limit = random.randint(offeredctc*(1.2),offeredctc*(1.5))
+        random.seed(int(id))
+        lower_limit = max(int(random.randint(offeredctc*2,offeredctc*6)/10),300000)
+        upper_limit = min(int(random.randint(offeredctc*12,offeredctc*15)/10),5000000)
         
         difference = offeredctc - currentctc
         change_in_ctc = difference
@@ -99,10 +100,27 @@ async def get_ctc_info(
 
         ##extracting name
         first_name = db_1.exec(
-            text("SELECT firstName " "FROM form " "WHERE appid = :id").params(id=id)
+            text("SELECT firstName, gender " "FROM form " "WHERE appid = :id").params(id=id)
         )
         firstname = first_name.fetchone()
-        name = firstname[0]
+        if firstname:
+            name = firstname[0]
+            gender = firstname[1]
+            if gender.upper() == "M" or gender.upper() == "MALE":
+                pronoun1 = "He"
+                pronoun2 = "his"
+            elif gender.upper() == "F" or gender.upper() == "FEMALE":
+                pronoun1 = "She"
+                pronoun2 = "her"
+            else:
+                # Handle cases where gender is not provided or not recognized
+                pronoun1 = "They"
+                pronoun2 = "their"
+        else:
+            # Handle cases where no data is retrieved from the database
+            name = "Unknown"
+            pronoun1 = "They"
+            pronoun2 = "Their"
         # logger.debug("PASSED FIRST NAME")
         ##payanalysis
         current_percentile = round(((currentctc - lower_limit) / (upper_limit - lower_limit)) * 100,2) if (upper_limit-lower_limit) != 0 else 0
@@ -120,7 +138,7 @@ async def get_ctc_info(
             pay_analysis_remark = "Major"
         else:
             pay_analysis_remark = "Very High"
-        pay_analysis_final_remark = f"Based on {name}'s Education, location, Industry, role and experience, he will be moving from {current_percentile} percentile to {offered_percentile} percentile level. This will be considered as a {pay_analysis_remark} change in Pay."
+        pay_analysis_final_remark = f"Based on {name}'s Education, location, Industry, role and experience, {pronoun1} will be moving from {current_percentile} percentile to {offered_percentile} percentile level. This will be considered as a {pay_analysis_remark} change in Pay."
 
         query_1 = text(
             """
@@ -386,7 +404,7 @@ async def get_ctc_info(
             remark = "average"
         else:
             remark = "Long"
-        tenure_remarks = f"{name}’s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
+        tenure_remarks = f"{name}’s tenure with companies seem to be {remark}. This could be linked to {pronoun2} personal performance or market opportunity."
 
         # Calculate calculated_work_exp
         calculated_work_exp = 0

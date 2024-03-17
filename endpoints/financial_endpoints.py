@@ -305,7 +305,7 @@ async def get_income_summary(
         }
 
         income_score_percentage = max(0, 100 - 2 * (other_income_accounts + personal_income_accounts)) - 10 * (
-            len(overseas_income_sources) + business_income_accounts
+            overseas_income_sources_count + business_income_accounts
         )
         if income_score_percentage >= 95:
             income_score_text = "Excellent"
@@ -336,15 +336,15 @@ async def get_income_summary(
             )
         if other_income_accounts > 0:
             highlights.append(
-                f"{other_income_accounts} Other income sources contributing {round(other_income_percentage)}% of the total income (Red Flag)"
+                f"{other_income_accounts} Other income sources contributing {round(other_income_percentage)}% of the total income (Discrepancy)"
             )
         if personal_income_accounts > 0:
             highlights.append(
-                f"{personal_income_accounts} Personal income sources contributing {round(personal_income_percentage)}% of the total income (Red Flag)"
+                f"{personal_income_accounts} Personal income sources contributing {round(personal_income_percentage)}% of the total income (Discrepancy)"
             )
-        if len(overseas_income_sources) > 0:
+        if overseas_income_sources_count > 0:
             highlights.append(
-                f"{len(overseas_income_sources)} Overseas income sources contributing {round(overseas_income_percentage)}% of the total income (Red Flag)"
+                f"{overseas_income_sources_count} Overseas income sources contributing {round(overseas_income_percentage)}% of the total income (Red Flag)"
             )
 
         income_highlights = []
@@ -530,16 +530,16 @@ async def get_income_summary(
             total_number_of_income_sources=total_number_of_income_sources,
             red_flag=business_income_accounts
             + overseas_income_sources_count,
-            total_salary_received=total_salary,
-            total_other_income=total_other_income,
-            total_business_income=total_business_income,
-            total_personal_savings=total_personal_income,
-            total_overseas_income=total_overseas_income,
-            total_income=total_salary
+            total_salary_received=round(total_salary),
+            total_other_income=round(total_other_income),
+            total_business_income=round(total_business_income),
+            total_personal_savings=round(total_personal_income),
+            total_overseas_income=round(total_overseas_income),
+            total_income=round(total_salary
             + total_other_income
             + total_overseas_income
             + total_personal_income
-            + total_business_income,
+            + total_business_income),
             monthly_income_details=monthly_income_details,
             income_sources=income_sources,
             income_percentage=income_percentage,
