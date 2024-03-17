@@ -116,6 +116,7 @@ async def get_ctc_info(
                 # Handle cases where gender is not provided or not recognized
                 pronoun1 = "They"
                 pronoun2 = "their"
+
         else:
             # Handle cases where no data is retrieved from the database
             name = "Unknown"
