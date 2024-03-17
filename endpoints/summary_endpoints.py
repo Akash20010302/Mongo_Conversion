@@ -772,8 +772,8 @@ async def summary(
             currentctc = 0
             offeredctc = 0
         random.seed(int(application_id))
-        lower_limit = int(random.randint(offeredctc*2,offeredctc*6)/10)
-        upper_limit = int(random.randint(offeredctc*12,offeredctc*15)/10)
+        lower_limit = max(int(random.randint(offeredctc*2,offeredctc*6)/10),300000)
+        upper_limit = min(int(random.randint(offeredctc*12,offeredctc*15)/10),5000000)
         
         offered_ctc_percentange = min(round(float((offeredctc / upper_limit) * 100), 0),100) if upper_limit != 0 else 0
         if offered_ctc_percentange < 50:
