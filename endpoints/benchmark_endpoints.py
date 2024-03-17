@@ -67,7 +67,7 @@ async def get_ctc_info(
             offeredctc = 0
         random.seed(int(id))
         lower_limit = max(int(random.randint(offeredctc*2,offeredctc*6)/10),300000)
-        upper_limit = min(int(random.randint(offeredctc*12,offeredctc*15)/10),500000)
+        upper_limit = min(int(random.randint(offeredctc*12,offeredctc*15)/10),5000000)
         
         difference = offeredctc - currentctc
         change_in_ctc = difference
