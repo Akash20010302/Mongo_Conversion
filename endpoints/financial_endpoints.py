@@ -30,7 +30,7 @@ async def get_income_summary(
                 COUNT(DISTINCT CASE WHEN section_1 = '192' THEN deductor_tan_no END) AS salary_accounts,
                 COUNT(DISTINCT CASE WHEN section_1 IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') THEN deductor_tan_no END) AS other_income_accounts,
                 COUNT(DISTINCT CASE WHEN section_1 IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') THEN deductor_tan_no END) AS business_income_accounts,
-                COUNT(DISTINCT CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') THEN deductor_tan_no END) AS personal_income_accounts,
+                COUNT(DISTINCT CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194LD') THEN deductor_tan_no END) AS personal_income_accounts,
                 SUM(CASE WHEN section_1 LIKE '192%' THEN paid_credited_amt END) AS total_salary,
                 SUM(CASE WHEN section_1 IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') THEN 
                         CASE 
@@ -49,7 +49,7 @@ async def get_income_summary(
                             ELSE paid_credited_amt
                         END
                 END) AS total_business_income,
-                SUM(CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') THEN 
+                SUM(CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194LD') THEN 
                         CASE
                             WHEN section_1 = '192A' THEN paid_credited_amt / 0.1
                             ELSE paid_credited_amt
@@ -67,7 +67,7 @@ async def get_income_summary(
                                             SUM(CASE WHEN section_1 LIKE '192%' THEN paid_credited_amt ELSE 0 END) AS total_salary_amount,
                                             SUM(CASE WHEN section_1 IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') THEN paid_credited_amt ELSE 0 END) AS total_other_income_amount,
                                             SUM(CASE WHEN section_1 IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') THEN paid_credited_amt ELSE 0 END) AS total_business_income_amount,
-                                            SUM(CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') THEN paid_credited_amt ELSE 0 END) AS total_personal_income_amount
+                                            SUM(CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194LD') THEN paid_credited_amt ELSE 0 END) AS total_personal_income_amount
                                         FROM (
                                             SELECT 
                                                 transaction_dt AS formatted_date,
@@ -96,7 +96,8 @@ async def get_income_summary(
                                         END) AS overseas_income_amount,
                                         deductor_tan_no
                                     FROM itr_26as_details
-                                    WHERE application_id = :application_id AND section_1 IN ('206CQ', '206CO')
+                                    WHERE application_id = :application_id AND section_1 IN ('206CQ', '206CO') AND transaction_dt >= CURDATE() - INTERVAL 12 MONTH
+                                            AND transaction_dt < CURDATE()
                                     GROUP BY month_year
             """
         )
@@ -141,7 +142,8 @@ async def get_income_summary(
             monthly_overseas_income[month_year] += amount
 
         overseas_income_sources = list(set(overseas_income_sources))
-
+        logger.debug(overseas_income_sources)
+        overseas_income_sources_count = len(overseas_income_sources)
         # Query for distinct income sources
         income_sources_query = text(
             """
@@ -155,7 +157,7 @@ async def get_income_summary(
                                         DISTINCT CASE WHEN section_1 = '192' THEN deductor_tan_no END as salary_source,
                                         CASE WHEN section_1 IN ('194DA', '194I(a)', '194I(b)', '194I', '194LA', '194S', '194M', '194N', '194P', '194Q', '196DA', '206CA', '206CB', '206CC', '206CD', '206CE', '206CF', '206CG', '206CH', '206CI', '206CJ', '206CK', '206CL', '206CM', '206CP', '206CR') THEN deductor_tan_no END as other_source,
                                         CASE WHEN section_1 IN ('194C', '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') THEN deductor_tan_no END as business_source,
-                                        CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194S', '194LD') THEN deductor_tan_no END as personal_income
+                                        CASE WHEN section_1 IN ('192A','193', '194', '194A', '194B', '194BB', '194EE', '194F', '194G', '194IA', '194IB', '194K', '194LB', '194LBB', '194LBC', '194LD') THEN deductor_tan_no END as personal_income
                                     FROM itr_26as_details
                                     WHERE application_id = :application_id
                                         AND transaction_dt >= CURDATE() - INTERVAL 12 MONTH
@@ -236,6 +238,17 @@ async def get_income_summary(
                     tan_map.get(row[3]) + " {" + row[3] + "}"
                 )
 
+        if len(salary_sources) == 0:
+            salary_sources.append("N/A")
+        if len(other_income_sources) == 0:
+            other_income_sources.append("N/A")
+        if len(business_income_sources) == 0:
+            business_income_sources.append("N/A")
+        if len(personal_income_sources) == 0:
+            personal_income_sources.append("N/A")
+        if len(overseas_income_sources) == 0:
+            overseas_income_sources.append("N/A")
+
         income_sources = IncomeSources(
             salary_sources=salary_sources,
             other_income_sources=other_income_sources,
@@ -307,7 +320,7 @@ async def get_income_summary(
             salary_accounts
             + other_income_accounts
             + business_income_accounts
-            + len(overseas_income_sources)
+            + overseas_income_sources_count
             + personal_income_accounts
         )
 
@@ -513,10 +526,10 @@ async def get_income_summary(
             number_of_other_income_accounts=other_income_accounts,
             number_of_business_income_accounts=business_income_accounts,
             number_of_personal_savings_account=personal_income_accounts,
-            number_of_overseas_acount=len(overseas_income_sources),
+            number_of_overseas_acount=overseas_income_sources_count,
             total_number_of_income_sources=total_number_of_income_sources,
             red_flag=business_income_accounts
-            + len(overseas_income_sources),
+            + overseas_income_sources_count,
             total_salary_received=total_salary,
             total_other_income=total_other_income,
             total_business_income=total_business_income,
