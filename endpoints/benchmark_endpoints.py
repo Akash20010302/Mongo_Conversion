@@ -100,7 +100,7 @@ async def get_ctc_info(
 
         ##extracting name
         first_name = db_1.exec(
-            text("SELECT firstName " "FROM form " "WHERE appid = :id").params(id=id)
+            text("SELECT firstName, gender " "FROM form " "WHERE appid = :id").params(id=id)
         )
         firstname = first_name.fetchone()
         if firstname:
@@ -108,14 +108,15 @@ async def get_ctc_info(
             gender = firstname[1]
             if gender.upper() == "M" or gender.upper() == "MALE":
                 pronoun1 = "He"
-                pronoun2 = "His"
+                pronoun2 = "his"
             elif gender.upper() == "F" or gender.upper() == "FEMALE":
                 pronoun1 = "She"
-                pronoun2 = "Her"
+                pronoun2 = "her"
             else:
                 # Handle cases where gender is not provided or not recognized
                 pronoun1 = "They"
-                pronoun2 = "Their"
+                pronoun2 = "their"
+
         else:
             # Handle cases where no data is retrieved from the database
             name = "Unknown"

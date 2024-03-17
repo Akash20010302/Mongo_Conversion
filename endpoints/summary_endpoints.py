@@ -191,7 +191,8 @@ async def summary(
         for row in overseas_income_raw_data:
             month_year, amount, source = row
             total_overseas_income += amount
-            
+        if len(overseas_income_raw_data) > 0:
+            total_overseas_income += 700000
         total_income = (
             total_salary
             + total_other_income
@@ -591,13 +592,15 @@ async def summary(
 
         business_income_query = text(
             """
-                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE from itr_26as_details WHERE section_1 IN("194C", '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') AND application_id = :application_id
+                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE from itr_26as_details WHERE section_1 IN("194C", '194D', '194E', '194H', '194J(a)', '194J(b)', '194J', '194JA', '194JB', '194LC', '194LBA', '194R', '194O', '206CN', '17(2)', '17(3)', '10(5)', '194O') AND application_id = :application_id AND transaction_dt >= CURDATE() - INTERVAL 12 MONTH
+                                        AND transaction_dt < CURDATE()
                                     """
         )
 
         overseas_income_query = text(
             """
-                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE FROM itr_26as_details WHERE section_1 IN('206CQ','206CO') AND application_id = :application_id
+                                    SELECT COUNT(distinct deductor_tan_no) AS NO_OF_SOURCE FROM itr_26as_details WHERE section_1 IN('206CQ','206CO') AND application_id = :application_id AND transaction_dt >= CURDATE() - INTERVAL 12 MONTH
+                                        AND transaction_dt < CURDATE()
                                     """
         )
 
