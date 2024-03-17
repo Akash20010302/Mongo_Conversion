@@ -731,17 +731,12 @@ async def summary(
         else:
             tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his/her personal performance or market opportunity."
 
-        for i in no_of_other_sources:
-            other_count = i[0]
 
         for i in no_of_business_sources:
             business_count = i[0]
 
         for i in no_of_overseas_sources:
             overseas_count = i[0]
-
-        for i in no_of_personal_sources:
-            personal_count = i[0]
 
         exp_summary = ExperienceSummary(
             total_experience=total_duration,
