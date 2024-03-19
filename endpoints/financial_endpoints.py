@@ -522,6 +522,9 @@ async def get_income_summary(
                 "Other income has a growing trend month-over-month. This could lead to drop in performance"
             )
 
+        if len(distribution_highlights) == 0:
+            distribution_highlights.append("No month-over-month income trend found ")
+
         return IncomeSummaryResponse(
             number_of_salary_accounts=salary_accounts,
             number_of_other_income_accounts=other_income_accounts,
