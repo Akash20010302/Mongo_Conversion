@@ -463,8 +463,8 @@ async def summary(
 
         result = db_backend.exec(resume_query.params(formid=application_id))
         resume_raw_data = result.fetchall()
-        logger.debug(resume_raw_data)
         company_data = []
+        logger.debug(resume_raw_data)
         for exp in resume_raw_data:
             company = exp[0]
             from_date = datetime.datetime.strptime(exp[1], "%Y-%m-%d")
@@ -491,16 +491,19 @@ async def summary(
                     "type": "work_exp",
                 }
             )
-
+        company_data = sorted(company_data, key=lambda x: datetime.datetime.strptime(x['start_date'],"%m-%d-%Y"))
         overlapping_durations_tenure = []
         gaps_tenure = []
         logger.debug(company_data)
-        for i, entry1 in enumerate(company_data):
-            end_date1 = entry1["end_date"]
-            for entry2 in company_data[i + 1 :]:
-                start_date2 = entry2["start_date"]
-                if end_date1 > start_date2:
-                    overlapping_durations_tenure.append(
+        for i in range(len(company_data)-1):
+            entry1 = company_data[i]
+            end_date1 = datetime.datetime.strptime(entry1["end_date"], "%m-%d-%Y")
+            entry2= company_data[i+1]
+            start_date2 = datetime.datetime.strptime(entry2["start_date"], "%m-%d-%Y")
+            logger.debug(end_date1)
+            logger.debug(start_date2)
+            if end_date1 > start_date2:
+                overlapping_durations_tenure.append(
                         {
                             "company_name": entry2["company_name"],
                             "start_date": entry2["start_date"],
@@ -509,26 +512,24 @@ async def summary(
                         }
                     )
 
-                if end_date1 < start_date2:
-                    end_date1_datetime = datetime.datetime.strptime(
-                        end_date1, "%m-%d-%Y"
+            if end_date1 < start_date2:
+                #end_date1_datetime = datetime.datetime.strptime(end_date1, "%m-%d-%Y")
+                gap_start_date = (end_date1 + datetime.timedelta(days=1)).strftime(
+                        "%m-%d-%Y"
                     )
-                    gap_start_date = (
-                        end_date1_datetime + datetime.timedelta(days=1)
-                    ).strftime("%m-%d-%Y")
 
-                    start_date2_datetime = datetime.datetime.strptime(
-                        start_date2, "%m-%d-%Y"
+                #start_date2_datetime = datetime.datetime.strptime(start_date2, "%m-%d-%Y")
+                gap_end_date = (start_date2 - datetime.timedelta(days=1)).strftime(
+                        "%m-%d-%Y"
                     )
-                    gap_end_date = (
-                        start_date2_datetime - datetime.timedelta(days=1)
-                    ).strftime("%m-%d-%Y")
-                    gaps_tenure.append({"company_name": "","start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
+
+                gaps_tenure.append({"company_name": "","start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
                 
         logger.debug(overlapping_durations_tenure)
         logger.debug(gaps_tenure)
         # discrepancies
-
+        gaps_tenure = [entry for entry in gaps_tenure if entry['start_date'][:2] != entry['end_date'][:2] and entry['start_date'][6:] != entry['end_date'][6:]]
+        overlapping_durations_tenure = [entry for entry in overlapping_durations_tenure if entry['start_date'][:2] != entry['end_date'][:2] and entry['start_date'][6:] != entry['end_date'][6:]]
         overlapping_gaps = []
         if len(gaps):
             for gap in gaps:
@@ -559,8 +560,8 @@ async def summary(
             all_exp_tenure += company_data 
         if overlapping_durations_tenure:
             all_exp_tenure += overlapping_durations_tenure
-        if gaps_tenure:
-            all_exp_tenure += gaps_tenure
+        # if gaps_tenure:
+        #     all_exp_tenure += gaps_tenure
 
         date_mismatch = []
         
@@ -627,11 +628,12 @@ async def summary(
 
         red_flag = (
             len(overlapping_durations)
+            +len(overlapping_durations_tenure)
             + business_count
             + overseas_count
         )
         discrepancies = len(overlapping_gaps) + len(date_mismatch)
-        good_to_know = len(gaps)
+        good_to_know = len(gaps_tenure)
 
         if len(all_exp_govt_docs):
             for i in all_exp_govt_docs:
@@ -664,6 +666,10 @@ async def summary(
         if good_to_know == 0:
             highlight.append(
                 f"No GAPs are identified that is not reflected in the resume"
+            )
+        elif good_to_know == 1:
+            highlight.append(
+                f"{good_to_know} GAP is identified that is not reflected in the resume"
             )
         else:
             highlight.append(
@@ -701,14 +707,14 @@ async def summary(
                     f"No starting date and ending date of employment found for {companies_without_dates[0]} in government documents"
                 )
         if len(date_mismatch) == 1:
-            highlight.append(f"For {date_mismatch[0]}, a mismatch is found between the joining date or exit date in the government document and the resume.")
+            highlight.append(f"For {date_mismatch[0]}, a mismatch is found between the joining date or exit date in the government document and the resume (Discrepancy)")
         elif len(date_mismatch) >1:
             companies = ', '.join(date_mismatch[:-1]) + ' and ' + date_mismatch[-1]
            
-            highlight.append(f"For {companies} mismatches are found between the joining date or exit date in the government document and the resume.")
+            highlight.append(f"For {companies} mismatches are found between the joining date or exit date in the government document and the resume (Discrepancy)")
 
         if len(overlapping_gaps) >0:
-            highlight.append(f"There are gaps in the goverment documents but not in the resume.")
+            highlight.append(f"There are gaps in the goverment documents but not in the resume (Discrepancy)")
 
         first_name = db_backend.exec(
             text("SELECT firstName,gender " "FROM `form` " "WHERE appid = :id").params(
@@ -724,9 +730,10 @@ async def summary(
             remark = "average"
         else:
             remark = "Long"
-        if gender == "M" or gender == "Male":
+
+        if gender.lower() == "m" or gender.lower() == "male":
             tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his personal performance or market opportunity."
-        elif gender == "F" or gender == "Female":
+        elif gender.lower() == "f" or gender.lower() == "female":
             tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to her personal performance or market opportunity."
         else:
             tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his/her personal performance or market opportunity."

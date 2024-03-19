@@ -166,7 +166,7 @@ async def get_career_summary(
                                 )
 
         # tenure
-
+                                
         resume_query = text(
             """
             SELECT company,
@@ -208,16 +208,20 @@ async def get_career_summary(
                     "type": "work_exp",
                 }
             )
-
+        company_data = sorted(company_data, key=lambda x: datetime.strptime(x['start_date'],"%m-%d-%Y"))
+        logger.debug(company_data)
         overlapping_durations_tenure = []
         gaps_tenure = []
 
-        for i, entry1 in enumerate(company_data):
-            end_date1 = entry1["end_date"]
-            for entry2 in company_data[i + 1 :]:
-                start_date2 = entry2["start_date"]
-                if end_date1 > start_date2:
-                    overlapping_durations_tenure.append(
+        for i in range(len(company_data)-1):
+            entry1 = company_data[i]
+            end_date1 = datetime.strptime(entry1["end_date"], "%m-%d-%Y")
+            entry2= company_data[i+1]
+            start_date2 = datetime.strptime(entry2["start_date"], "%m-%d-%Y")
+            logger.debug(end_date1)
+            logger.debug(start_date2)
+            if end_date1 > start_date2:
+                overlapping_durations_tenure.append(
                         {
                             "company_name": entry2["company_name"],
                             "start_date": entry2["start_date"],
@@ -226,21 +230,22 @@ async def get_career_summary(
                         }
                     )
 
-                if end_date1 < start_date2:
-                    end_date1_datetime = datetime.strptime(end_date1, "%m-%d-%Y")
-                    gap_start_date = (end_date1_datetime + timedelta(days=1)).strftime(
+            if end_date1 < start_date2:
+                #end_date1_datetime = datetime.strptime(end_date1, "%m-%d-%Y")
+                gap_start_date = (end_date1 + timedelta(days=1)).strftime(
                         "%m-%d-%Y"
                     )
 
-                    start_date2_datetime = datetime.strptime(start_date2, "%m-%d-%Y")
-                    gap_end_date = (start_date2_datetime - timedelta(days=1)).strftime(
+                #start_date2_datetime = datetime.strptime(start_date2, "%m-%d-%Y")
+                gap_end_date = (start_date2 - timedelta(days=1)).strftime(
                         "%m-%d-%Y"
                     )
 
-                    gaps_tenure.append({"company_name": "","start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
-                
-
+                gaps_tenure.append({"company_name": "","start_date": gap_start_date, "end_date": gap_end_date,"type":"gaps"})
+        
         # discrepancies
+        gaps_tenure = [entry for entry in gaps_tenure if entry['start_date'][:2] != entry['end_date'][:2] and entry['start_date'][6:] != entry['end_date'][6:]]
+        overlapping_durations_tenure = [entry for entry in overlapping_durations_tenure if entry['start_date'][:2] != entry['end_date'][:2] and entry['start_date'][6:] != entry['end_date'][6:]]
 
         overlapping_gaps = []
 
@@ -274,8 +279,8 @@ async def get_career_summary(
             all_exp_tenure += company_data 
         if overlapping_durations_tenure:
             all_exp_tenure += overlapping_durations_tenure
-        if gaps_tenure:
-            all_exp_tenure += gaps_tenure
+        # if gaps_tenure:
+        #     all_exp_tenure += gaps_tenure
             
         date_mismatch = []
         
@@ -305,7 +310,7 @@ async def get_career_summary(
         logger.debug(date_mismatch)
         
         all_experiences_sorted_tenure = sorted(
-            all_exp_tenure, key=lambda x: x.get("start_date", "N/A")
+            all_exp_tenure, key=lambda x: datetime.strptime(x.get("start_date", "N/A"), "%m-%d-%Y")
         )
 
 
@@ -342,11 +347,12 @@ async def get_career_summary(
 
         red_flag = (
             len(overlapping_durations)
+            + len(overlapping_durations_tenure)
             + business_count
             + overseas_count
         )
         discrepancies = len(overlapping_gaps) + len(date_mismatch)
-        good_to_know = len(gaps)
+        good_to_know = len(gaps_tenure)
 
         meter = max(0, int(100 - discrepancies * 2 - red_flag * 10))
 
@@ -392,16 +398,20 @@ async def get_career_summary(
             highlight.append(
                 f"No GAPs are identified that is not reflected in the resume"
             )
+        elif good_to_know == 1:
+            highlight.append(
+                f"{good_to_know} GAP is identified that is not reflected in the resume"
+            )
         else:
             highlight.append(
                 f"{good_to_know} GAPs are identified that is not reflected in the resume"
             )
 
-        if len(overlapping_durations) == 0:
+        if len(overlapping_durations) == 0 and len(overlapping_durations_tenure)==0:
             highlight.append(f"No situation of dual employment found (Red Flag)")
         else:
             highlight.append(
-                f"{len(overlapping_durations)} situation of dual employment found (Red Flag)"
+                f"{len(overlapping_durations)+len(overlapping_durations_tenure)} situation of dual employment found (Red Flag)"
             )
 
         if business_count == 0:
@@ -414,14 +424,14 @@ async def get_career_summary(
         )
         
         if len(date_mismatch) == 1:
-            highlight.append(f"For {date_mismatch[0]}, a mismatch is found between the joining date or exit date in the government document and the resume.")
+            highlight.append(f"For {date_mismatch[0]}, a mismatch is found between the joining date or exit date in the government document and the resume (Discrepancy)")
         elif len(date_mismatch) >1:
             companies = ', '.join(date_mismatch[:-1]) + ' and ' + date_mismatch[-1]
            
-            highlight.append(f"For {companies} mismatches are found between the joining date or exit date in the government document and the resume.")
+            highlight.append(f"For {companies} mismatches are found between the joining date or exit date in the government document and the resume (Discrepancy)")
 
         if len(overlapping_gaps) >0:
-            highlight.append(f"There are gaps in the goverment documents but not in the resume.")
+            highlight.append(f"There are gaps in the goverment documents but not in the resume (Discrepancy)")
 
         if flag == True:
             if len(companies_without_dates) > 1:
