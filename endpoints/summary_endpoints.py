@@ -32,7 +32,7 @@ from models.Summary import (
 )
 from repos.application_repos import find_application
 from repos.form_repos import get_basic_info
-from tools.benchmark_tools import convert_to_datetime
+from tools.benchmark_tools import convert_to_datetime, convert_to_datetime_format
 from tools.career_tools import overlap
 from fuzzywuzzy import fuzz
 from tools.contact_tools import (
@@ -384,19 +384,23 @@ async def summary(
             for i, entry1 in enumerate(work_exp):
                 # if entry1["end_date"]!="N/A":
                 #     end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
+                logger.debug(entry1["end_date"])
+                
                 if entry1["end_date"] != "N/A":
-                    end_date1 = await convert_to_datetime(
+                    end_date1 = await convert_to_datetime_format(
+                        entry1["end_date"].split("-")[2],
                         entry1["end_date"].split("-")[1],
-                        entry1["end_date"].split("-")[0],
+                        entry1["end_date"].split("-")[0]
                     )
-
                     for entry2 in work_exp[i + 1 :]:
+                        logger.debug(entry2["start_date"])
                         # if entry2["start_date"]!="N/A":
                         #     start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
                         if entry2["start_date"] != "N/A":
-                            start_date2 = await convert_to_datetime(
+                            start_date2 = await convert_to_datetime_format(
+                                entry2["start_date"].split("-")[2],
                                 entry2["start_date"].split("-")[1],
-                                entry2["start_date"].split("-")[0],
+                                entry2["start_date"].split("-")[0]
                             )
 
                             # overlapping
@@ -423,20 +427,22 @@ async def summary(
                                 )
 
                             # gaps
-
+                            
                             if end_date1 < start_date2:
-                                end_date1_datetime = datetime.datetime.strptime(
-                                    end_date1, "%m-%d-%Y"
-                                )
+                                # end_date1_datetime = datetime.datetime.strptime(
+                                #     end_date1, "%m-%d-%Y"
+                                # )
+                                logger.debug(end_date1)
+                                logger.debug(start_date2)
                                 gap_start_date = (
-                                    end_date1_datetime + datetime.timedelta(days=1)
+                                    end_date1 + datetime.timedelta(days=1)
                                 ).strftime("%m-%d-%Y")
 
-                                start_date2_datetime = datetime.datetime.strptime(
-                                    start_date2, "%m-%d-%Y"
-                                )
+                                # start_date2_datetime = datetime.datetime.strptime(
+                                #     start_date2, "%m-%d-%Y"
+                                # )
                                 gap_end_date = (
-                                    start_date2_datetime - datetime.timedelta(days=1)
+                                    start_date2 - datetime.timedelta(days=1)
                                 ).strftime("%m-%d-%Y")
                                 gaps.append(
                                     {
@@ -539,7 +545,10 @@ async def summary(
                 for exp in company_data:
                     exp_start = exp["start_date"]
                     exp_end = exp["end_date"]
-
+                    logger.debug(gap_start)
+                    logger.debug(gap_end)
+                    logger.debug(exp_start)
+                    logger.debug(exp_end)
                     if await overlap(gap_start, gap_end, exp_start, exp_end):
                         overlapping_gaps.append(gap)
                         break
@@ -665,15 +674,15 @@ async def summary(
         highlight = []
         if good_to_know == 0:
             highlight.append(
-                f"No GAPs are identified that is not reflected in the resume"
+                f"No GAPs are identified in the resume"
             )
         elif good_to_know == 1:
             highlight.append(
-                f"{good_to_know} GAP is identified that is not reflected in the resume"
+                f"{good_to_know} GAP is identified in the resume"
             )
         else:
             highlight.append(
-                f"{good_to_know} GAPs are identified that is not reflected in the resume"
+                f"{good_to_know} GAPs are identified in the resume"
             )
 
         if len(overlapping_durations) == 0:
@@ -738,6 +747,13 @@ async def summary(
         else:
             tenure_remarks = f"{name}'s tenure with companies seem to be {remark}. This could be linked to his/her personal performance or market opportunity."
 
+
+        for i in no_of_business_sources:
+            business_count = i[0]
+
+        for i in no_of_overseas_sources:
+            overseas_count = i[0]
+
         exp_summary = ExperienceSummary(
             total_experience=total_duration,
             median_tenure=median_duration,
@@ -786,6 +802,7 @@ async def summary(
         upper_limit = min(int(random.randint(offeredctc*12,offeredctc*15)/10),5000000)
         
         offered_ctc_percentange = min(round(float((offeredctc / upper_limit) * 100), 0),100) if upper_limit != 0 else 0
+
         if offered_ctc_percentange < 50:
             output = "LOW"
         elif 50 <= offered_ctc_percentange < 75:
@@ -832,7 +849,6 @@ async def summary(
             monthly_income_query.params(application_id=application_id)
         )
         monthly_income_raw_data = monthly_income_result.fetchall()
-
         
         differences = []
 
@@ -850,6 +866,7 @@ async def summary(
             
         monthly_income_dict = dict(monthly_income_raw_data)
         salary_list = list(monthly_income_dict.values())
+
         if salary_list:
             if 0 < len(salary_list) <= 4:
                 total_salary=int(sum(salary_list)-bonus)            
@@ -861,7 +878,6 @@ async def summary(
                 total_salary = int(((sum(salary_list)-bonus)/len(salary_list))*12)              
         else:
             total_salary = 0
-
         net_ctc = total_salary + bonus + pf
         possible_ctc_variation = int(net_ctc * 15 / 100)
         estimated_ctc_range = f"{net_ctc}-{net_ctc+possible_ctc_variation}"

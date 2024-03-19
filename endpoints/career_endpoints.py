@@ -9,6 +9,7 @@ from db.db import get_db_analytics, get_db_backend
 from email_response import send_email
 
 from models.Career import CareerDetailsResponse
+from tools.benchmark_tools import convert_to_datetime_format
 from tools.career_tools import convert_to_datetime, overlap
 from starlette.status import (
     HTTP_401_UNAUTHORIZED,
@@ -114,14 +115,16 @@ async def get_career_summary(
 
             for i, entry1 in enumerate(work_exp):
                 if entry1["end_date"] != "N/A":
-                    end_date1 = await convert_to_datetime(
+                    end_date1 = await convert_to_datetime_format(
+                        entry1["end_date"].split("-")[2],
                         entry1["end_date"].split("-")[1],
-                        entry1["end_date"].split("-")[0],
+                        entry1["end_date"].split("-")[0]
                     )
 
                     for entry2 in work_exp[i + 1 :]:
                         if entry2["start_date"] != "N/A":
-                            start_date2 = await convert_to_datetime(
+                            start_date2 = await convert_to_datetime_format(
+                                entry2["start_date"].split("-")[2],
                                 entry2["start_date"].split("-")[1],
                                 entry2["start_date"].split("-")[0],
                             )
@@ -396,15 +399,15 @@ async def get_career_summary(
         highlight = []
         if good_to_know == 0:
             highlight.append(
-                f"No GAPs are identified that is not reflected in the resume"
+                f"No GAPs are identified in the resume"
             )
         elif good_to_know == 1:
             highlight.append(
-                f"{good_to_know} GAP is identified that is not reflected in the resume"
+                f"{good_to_know} GAP is identified in the resume"
             )
         else:
             highlight.append(
-                f"{good_to_know} GAPs are identified that is not reflected in the resume"
+                f"{good_to_know} GAPs are identified in the resume"
             )
 
         if len(overlapping_durations) == 0 and len(overlapping_durations_tenure)==0:
