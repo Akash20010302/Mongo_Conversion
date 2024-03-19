@@ -221,8 +221,6 @@ async def get_career_summary(
             end_date1 = datetime.strptime(entry1["end_date"], "%m-%d-%Y")
             entry2= company_data[i+1]
             start_date2 = datetime.strptime(entry2["start_date"], "%m-%d-%Y")
-            logger.debug(end_date1)
-            logger.debug(start_date2)
             if end_date1 > start_date2:
                 overlapping_durations_tenure.append(
                         {
