@@ -32,7 +32,7 @@ from models.Summary import (
 )
 from repos.application_repos import find_application
 from repos.form_repos import get_basic_info
-from tools.benchmark_tools import convert_to_datetime
+from tools.benchmark_tools import convert_to_datetime, convert_to_datetime_format
 from tools.career_tools import overlap
 from fuzzywuzzy import fuzz
 from tools.contact_tools import (
@@ -384,19 +384,21 @@ async def summary(
             for i, entry1 in enumerate(work_exp):
                 # if entry1["end_date"]!="N/A":
                 #     end_date1 = convert_to_datetime(entry1["end_date"].split("-")[1], entry1["end_date"].split("-")[0])
+                
                 if entry1["end_date"] != "N/A":
-                    end_date1 = await convert_to_datetime(
+                    end_date1 = await convert_to_datetime_format(
+                        entry1["end_date"].split("-")[2],
                         entry1["end_date"].split("-")[1],
-                        entry1["end_date"].split("-")[0],
+                        entry1["end_date"].split("-")[0]
                     )
-
                     for entry2 in work_exp[i + 1 :]:
                         # if entry2["start_date"]!="N/A":
                         #     start_date2 = convert_to_datetime(entry2["start_date"].split("-")[1], entry2["start_date"].split("-")[0])
                         if entry2["start_date"] != "N/A":
-                            start_date2 = await convert_to_datetime(
+                            start_date2 = await convert_to_datetime_format(
+                                entry2["start_date"].split("-")[2],
                                 entry2["start_date"].split("-")[1],
-                                entry2["start_date"].split("-")[0],
+                                entry2["start_date"].split("-")[0]
                             )
 
                             # overlapping
@@ -423,20 +425,22 @@ async def summary(
                                 )
 
                             # gaps
-
+                            
                             if end_date1 < start_date2:
-                                end_date1_datetime = datetime.datetime.strptime(
-                                    end_date1, "%m-%d-%Y"
-                                )
+                                # end_date1_datetime = datetime.datetime.strptime(
+                                #     end_date1, "%m-%d-%Y"
+                                # )
+                                logger.debug(end_date1)
+                                logger.debug(start_date2)
                                 gap_start_date = (
-                                    end_date1_datetime + datetime.timedelta(days=1)
+                                    end_date1 + datetime.timedelta(days=1)
                                 ).strftime("%m-%d-%Y")
 
-                                start_date2_datetime = datetime.datetime.strptime(
-                                    start_date2, "%m-%d-%Y"
-                                )
+                                # start_date2_datetime = datetime.datetime.strptime(
+                                #     start_date2, "%m-%d-%Y"
+                                # )
                                 gap_end_date = (
-                                    start_date2_datetime - datetime.timedelta(days=1)
+                                    start_date2 - datetime.timedelta(days=1)
                                 ).strftime("%m-%d-%Y")
                                 gaps.append(
                                     {
@@ -500,8 +504,7 @@ async def summary(
             end_date1 = datetime.datetime.strptime(entry1["end_date"], "%m-%d-%Y")
             entry2= company_data[i+1]
             start_date2 = datetime.datetime.strptime(entry2["start_date"], "%m-%d-%Y")
-            logger.debug(end_date1)
-            logger.debug(start_date2)
+            
             if end_date1 > start_date2:
                 overlapping_durations_tenure.append(
                         {
@@ -539,7 +542,7 @@ async def summary(
                 for exp in company_data:
                     exp_start = exp["start_date"]
                     exp_end = exp["end_date"]
-
+                    
                     if await overlap(gap_start, gap_end, exp_start, exp_end):
                         overlapping_gaps.append(gap)
                         break
@@ -665,15 +668,15 @@ async def summary(
         highlight = []
         if good_to_know == 0:
             highlight.append(
-                f"No GAPs are identified that is not reflected in the resume"
+                f"No GAPs are identified in the resume"
             )
         elif good_to_know == 1:
             highlight.append(
-                f"{good_to_know} GAP is identified that is not reflected in the resume"
+                f"{good_to_know} GAP is identified in the resume"
             )
         else:
             highlight.append(
-                f"{good_to_know} GAPs are identified that is not reflected in the resume"
+                f"{good_to_know} GAPs are identified in the resume"
             )
 
         if len(overlapping_durations) == 0:

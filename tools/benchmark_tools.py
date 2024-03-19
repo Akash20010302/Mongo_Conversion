@@ -25,11 +25,15 @@ async def get_indicator(value: float,lower_limit: float,upper_limit: float) -> s
         return ""
 
 
+async def convert_to_datetime_format(year, month,date):
+    if year or month:
+        return datetime(int(year), int(month), int(date))
+    return None
+
 async def convert_to_datetime(year, month):
     if year or month:
         return datetime(int(year), int(month), 1)
     return None
-
 
 async def convert_to_datetime_gap(date_str):
     return datetime.strptime(date_str, "%m-%Y")
