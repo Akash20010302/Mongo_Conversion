@@ -24,6 +24,7 @@ from repos.share_repos import get_share_list
 from tools.email_tools import get_email_body, report_share_email
 from tools.encrypter_tools import decrypt, encrypt
 from sqlalchemy.exc import PendingRollbackError
+from tools.role_tools import admins
 
 share_router = APIRouter()
 auth_handler = AuthHandler()
@@ -237,7 +238,7 @@ async def get_share(
     user=Depends(auth_handler.get_current_admin), session: Session = Depends(get_db_backend)
 ):
     try:
-        if user.role not in ["Super Admin", "Admin"]:
+        if user.role not in admins:
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED, detail="Unauthorized Access"
             )
@@ -249,7 +250,7 @@ async def get_share(
                 raise HTTPException(
                     status_code=HTTP_400_BAD_REQUEST, detail="Nothing Shared"
                 )
-        elif user.role == "Admin":
+        elif user.role in admins[1:]:
             comcanlist_found = select_all_candidatesid_filtered(user.companyid, session)
             if comcanlist_found is None or len(comcanlist_found) < 0:
                 raise HTTPException(
