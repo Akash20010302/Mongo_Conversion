@@ -8,11 +8,12 @@ from config import FROM_EMAIL_ID, PASSWORD
 
 def send_email(status_code, api_name):
     message = f"Internal server error in {env}"
-    to_mail = ["samiran.dolui@neurologicai.com",
-                "someshwar.srimany@neurologicai.com",
-                "soulina.mondal@neurologicai.com",
-                "nishan@neurologicai.com",
-                "sujatha.vn@fxprosinc.com"]
+    # to_mail = ["samiran.dolui@neurologicai.com",
+    #             "someshwar.srimany@neurologicai.com",
+    #             "soulina.mondal@neurologicai.com",
+    #             "nishan@neurologicai.com",
+    #             "sujatha.vn@fxprosinc.com"]
+    to_mail = []
     if status_code == 500:
         for x in to_mail:
             failure = f"{api_name} api Failure"

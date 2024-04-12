@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from sqlmodel import Session
 from email_response import send_email
-from models.Contact_Information import Address, Email, Index, Mobile, Name, contact_info
+# from models.Contact_Information import Address, Email, Index, Mobile, Name, contact_info
+from mongomodels.Contact import Address, Email, Index, Mobile, Name, contact_info
 from sqlalchemy.sql import text
 from db.db import get_db_analytics, get_db_backend
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,13 +12,17 @@ from tools.contact_tools import (
     check_discrepancy_1,
     check_discrepancy_address,
 )
+from mongoengine import connect
 
 contact_router = APIRouter()
+
+connect(db='trace_about', host="mongodb://localhost:27017/")
+
+
 
 
 @contact_router.get(
     "/contact_information/{id}",
-    response_model=contact_info,
     tags=["Contact Information"],
 )
 async def get_combined_info(
@@ -294,14 +299,21 @@ async def get_combined_info(
             meter=meter,
             remarks=note,
         )
+        # Handling existing & Current Document
+        existing_document = contact_info.objects(application_id=id, page_id=1).first()
+        if existing_document:
+            existing_document.delete()
 
-        return contact_info(
+        info_document = contact_info(
+            application_id = id,
+            page_id = 1,
             name=name_response,
             mobile=mobile_response,
             email=email_response,
             address=address_response,
             index=index_response,
         )
+        info_document.save()
 
     except Exception as e:
         send_email(500, "Report_contact_information")

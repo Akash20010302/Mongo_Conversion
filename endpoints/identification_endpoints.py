@@ -10,9 +10,38 @@ from tools.file_manager import (
     encode_file_to_base64,
     parse_s3_url,
 )
+from mongoengine import connect, StringField, IntField, Document, BooleanField, DateTimeField
+from datetime import datetime, timedelta
 
 identification_router = APIRouter()
 auth_handler = AuthHandler()
+
+connect(db='trace_about', host="mongodb://localhost:27017/")
+
+
+    
+# class Tenure(Document):
+#     formid = StringField(required=True)
+#     tokey = StringField(required=True)
+#     to_date = StringField(required=True)
+#     fromkey = StringField(required=True)
+#     from_date = StringField(required=True)
+#     rolekey = StringField(required=True)
+#     role = StringField(required=True)
+#     companykey = StringField(required=True)
+#     company = StringField(required=True)
+#     isDeleted = BooleanField(default=False)
+#     DeletedBy = StringField()
+#     createdon = DateTimeField(default=lambda: datetime.utcnow() + timedelta(hours=5, minutes=30))
+
+#     meta = {
+#         'indexes': [
+#             {'fields': ['formid'], 'name': 'idx_Tenure_formid'},
+#             {'fields': ['id'], 'name': 'idx_Tenure_id'}
+#         ]
+#     }
+
+
 
 
 @identification_router.get("/identification/{id}", tags=["Identification"])
@@ -106,7 +135,7 @@ async def iden_info(id: int, session: Session = Depends(get_db_backend)):
     # elif (iden["govt_pan_number_flag"]== True and iden["govt_aadhaar_number_flag"]==True) and (iden["Extracted_Pan_Number_flag"]==False or iden["Extracted_Aadhar_Number_flag"]==False):
     #    iden["meter_text"]= "Concern"
     # else:
-    #    iden["meter_text"]= "Bad"
+    #    iden["meter_text"]= "Bad" 
     # if iden["Aadhar_Status"] == "Verified" and iden["Pan_Status"] == "Verified":
     #    iden["Remarks"] = "Both PAN and AADHAAR are Consistent."
     # elif iden["Aadhar_Status"] == "Concern" and iden["Pan_Status"] == "Concern":
@@ -195,6 +224,8 @@ async def iden_info(id: int, session: Session = Depends(get_db_backend)):
         for key in iden.keys():
             if iden[key] == None:
                 iden[key] = "N/A"
+        # logger.debug(iden)
+        # iden.save()
         return iden
     else:
         raise HTTPException(

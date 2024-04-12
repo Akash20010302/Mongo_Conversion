@@ -4,10 +4,18 @@ from sqlalchemy import text
 from sqlmodel import Session
 from db.db import get_db_analytics
 from email_response import send_email
-from models.credits import CombinedResponseModel, Enquiries, tradeline
+# from models.credits import CombinedResponseModel, Enquiries, tradeline
+from mongomodels.Credits import CombinedResponseModel, Enquiries, tradeline, DatePhoneTuple, DateEmailTuple, DateAddressTuple
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
+from mongoengine import connect
+from typing import List, Tuple
 
 credits_router = APIRouter()
+
+connect(db='trace_about', host="mongodb://localhost:27017/")
+
+
 
 
 def compute_score_factors(
@@ -55,7 +63,6 @@ def compute_score_factors(
 
 @credits_router.get(
     "/credit_standing/{application_id}",
-    response_model=CombinedResponseModel,
     tags=["Credit Details"],
 )
 async def get_career_summary(
@@ -247,8 +254,25 @@ async def get_career_summary(
             enquiries_data, summary_data, active_account_count, credit_score
         )
 
+        # # Fetch data from SQL database
+        # query_result = db.exec(query_params)
+        # result_data = query_result.fetchone()
+
+        # # Transform tuple result into a dictionary
+        # data_dict = dict(result_data)
+    
+        
+        # Handling Old data and Current data
+        existing_document = CombinedResponseModel.objects(application_id=application_id, page_id=1).first()
+        if existing_document:
+            existing_document.delete()
+
+        # response = CombinedResponseModel(**data_dict)
+
         # Build the response
         response = CombinedResponseModel(
+            application_id=application_id,
+            page_id = 1,
             active_accounts=active_accounts,
             enquiries=Enquiries(
                 queries_last_1_month=enquiries_data[0]
@@ -307,13 +331,20 @@ async def get_career_summary(
                 high_credit=open_data[3] if open_data[3] else 0,
                 credit_limit=open_data[4] if open_data[4] else 0,
             ),
-            phone_numbers=phone_data,
-            email_addresses=email_data,
-            addresses=address_data,
+            # phone_numbers=phone_data,
+            # email_addresses=email_data,
+            # addresses=address_data,
+            phone_numbers=[DatePhoneTuple(date=date, phone=number) for date, number in phone_data],
+            addresses=[DateAddressTuple(date=date, address=address) for date, address in address_data],
+            email_addresses=[DateEmailTuple(date=date, email=email) for date, email in email_data],
             score_factors=score_factors if score_factors else [],
         )
+        logger.debug(response)
+        # print(response.to_mongo())
+        # info_result1 = response
+        # response.save()
+        response.save()
 
-        return response
     except HTTPException as ht:
         raise ht
     except Exception as e:

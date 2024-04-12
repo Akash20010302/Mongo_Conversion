@@ -16,23 +16,31 @@ from tools.benchmark_tools import (
     convert_to_datetime,
     get_ratio_indicator,
 )
-from models.Benchmark import (
-    ChangeResponse,
-    IdealCtcBand,
-    CtcResponse,
-    estimatedExpense,
-    ExpenseIncomeAnalysis,
-    NewResponse,
-    PayAnalysis,
-    PreviousResponse,
-    Response,
-    TenureAnalysis,
-)
+# from models.Benchmark import (
+#     ChangeResponse,
+#     IdealCtcBand,
+#     CtcResponse,
+#     estimatedExpense,
+#     ExpenseIncomeAnalysis,
+#     NewResponse,
+#     PayAnalysis,
+#     PreviousResponse,
+#     Response,
+#     TenureAnalysis,
+# )
+from mongomodels.Benchmark import ChangeResponse, IdealCtcBand, CtcResponse, estimatedExpense, ExpenseIncomeAnalysis, NewResponse, PayAnalysis, PreviousResponse, Benchmark, TenureAnalysis
+
+from mongoengine import connect
+
+
 
 benchmark_router = APIRouter()
 
+connect(db='trace_about', host="mongodb://localhost:27017/")
 
-@benchmark_router.get("/benchmark/{id}", response_model=Response, tags=["Benchmarking"])
+
+
+@benchmark_router.get("/benchmark/{id}", tags=["Benchmarking"])
 async def get_ctc_info(
     id: int,
     db_1: Session = Depends(get_db_backend),
@@ -449,13 +457,20 @@ async def get_ctc_info(
             num_of_jobs=total_jobs,
             calculated_work_exp=calculated_work_exp if calculated_work_exp is not None else 0.0,
         )
+        # Handling existing & Current Document
+        existing_document = Benchmark.objects(application_id=id, page_id=id).first()
+        if existing_document:
+            existing_document.delete()
 
-        return Response(
+        info_document = Benchmark(
+            application_id=id,
+            page_id=1,
             ctc_offered=ctc,
             pay_analysis=indicators,
             Expense_income_analysis=E_i,
             Tenure_analysis=tenure,
         )
+        info_document.save()
     except Exception as e:
         send_email(500, "Report_benchmark")
         logger.error(f"An unexpected error occurred: {str(e)}")

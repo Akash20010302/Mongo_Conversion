@@ -12,10 +12,27 @@ from auth.auth import AuthHandler
 from db.db import get_db_analytics, get_db_backend
 from email_response import send_email
 from endpoints.identification_endpoints import iden_info
-from models.Form import Form
+# from models.Form import Form
+from mongomodels.Form import Form
 from sqlalchemy.exc import PendingRollbackError
-from models.Contact_Information import Address, Email, Mobile, Name
-from models.Summary import (
+# from models.Contact_Information import Address, Email, Mobile, Name
+from mongomodels.Contact import Address, Email, Mobile, Name
+# from models.Summary import (
+#     ExperienceSummary,
+#     Name_,
+#     Mobile_,
+#     Email_,
+#     Address_,
+#     contact_information,
+#     IncomePosition,
+#     Ideal_ctc,
+#     Summary,
+#     SummaryBasicInfo,
+#     offered_past_ctc_summary,
+#     declared_household_income_summary,
+#     identity_info,
+# )
+from mongomodels.Summary import (
     ExperienceSummary,
     Name_,
     Mobile_,
@@ -40,14 +57,18 @@ from tools.contact_tools import (
     check_discrepancy_1,
     check_discrepancy_address,
 )
+from mongoengine import connect
 
 
 summary_router = APIRouter()
 auth_handler = AuthHandler()
 
+connect(db='trace_about', host="mongodb://localhost:27017/")
+
+
 
 @summary_router.get(
-    "/basic-info/{id}", response_model=SummaryBasicInfo, tags=["Summary"]
+    "/basic-info/{id}", tags=["Summary"]
 )
 async def basic_info(id: int, session: Session = Depends(get_db_backend)):
     try:
@@ -101,7 +122,7 @@ async def journey_info(id: int, session: Session = Depends(get_db_backend)):
 
 
 @summary_router.get(
-    "/summary_details/{application_id}", response_model=Summary, tags=["Summary"]
+    "/summary_details/{application_id}", tags=["Summary"]
 )
 async def summary(
     application_id: str,
@@ -1345,7 +1366,14 @@ async def summary(
             pan_text=pan_text,
             aadhar_text=aadhar_text,
         )
-        return Summary(
+        # Handling existing & Current Document
+        existing_document = Summary.objects(application_id=application_id, page_id=1).first()
+        if existing_document:
+            existing_document.delete()
+
+        info_document = Summary(
+            application_id = application_id,
+            page_id = 1,
             income_position=income_position,
             experience_summary=exp_summary,
             ctc_summary=offered_ctc_summary,
@@ -1353,6 +1381,7 @@ async def summary(
             contact=contact_,
             identity=iden,
         )
+        info_document.save()
     except HTTPException as ht:
         raise ht
     except Exception as e:

@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 from db.db import analytics_engine
-#from models.Kyc import epfo_get_kyc_details
+from models.Kyc import epfo_get_kyc_details
 from models.Kyc import Panlite_data, itr_download_profile
 
 # async def find_kyc(id: int):
@@ -10,6 +10,7 @@ from models.Kyc import Panlite_data, itr_download_profile
 #         )
 #         res = session.exec(statement).first()
 #         return res
+
     
 async def find_kyc(id: int):
     with Session(analytics_engine) as session:

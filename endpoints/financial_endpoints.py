@@ -3,15 +3,19 @@ from loguru import logger
 from sqlalchemy import text
 from sqlmodel import Session
 from email_response import send_email
-from models.financial import IncomeSources, IncomeSummaryResponse, MonthlyIncome
+# from models.financial import IncomeSources, IncomeSummaryResponse, MonthlyIncome
+from mongomodels.Financial import IncomeSources, IncomeSummaryResponse, MonthlyIncome
 from db.db import get_db_analytics
+from mongoengine import connect
+
 
 financial_router = APIRouter()
 
+connect(db='trace_about', host="mongodb://localhost:27017/")
+
 
 @financial_router.get(
-    "/financial_position/{application_id}", response_model=IncomeSummaryResponse
-)
+    "/financial_position/{application_id}")
 async def get_income_summary(
     application_id: str, db: Session = Depends(get_db_analytics)
 ):
@@ -525,7 +529,14 @@ async def get_income_summary(
         if len(distribution_highlights) == 0:
             distribution_highlights.append("No month-over-month income trend found ")
 
-        return IncomeSummaryResponse(
+        # Handling existing & Current Document
+        existing_document = IncomeSummaryResponse.objects(application_id=application_id, page_id=1).first()
+        if existing_document:
+            existing_document.delete()
+
+        info_document = IncomeSummaryResponse(
+            application_id = application_id,
+            page_id = 1,
             number_of_salary_accounts=salary_accounts,
             number_of_other_income_accounts=other_income_accounts,
             number_of_business_income_accounts=business_income_accounts,
@@ -553,6 +564,7 @@ async def get_income_summary(
             income_highlights=income_highlights,
             distribution_highlights=distribution_highlights,
         )
+        info_document.save()
     except HTTPException as ht:
         raise ht
     except Exception as e:

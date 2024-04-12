@@ -8,7 +8,8 @@ from loguru import logger
 from db.db import get_db_analytics, get_db_backend
 from email_response import send_email
 
-from models.Career import CareerDetailsResponse
+# from models.Career import CareerDetailsResponse
+from mongomodels.Career import CareerDetailsResponse
 from tools.benchmark_tools import convert_to_datetime_format
 from tools.career_tools import convert_to_datetime, overlap
 from starlette.status import (
@@ -17,12 +18,16 @@ from starlette.status import (
     HTTP_400_BAD_REQUEST,
     HTTP_200_OK,
 )
+from mongoengine import connect
+
 career_router = APIRouter()
+
+connect(db='trace_about', host="mongodb://localhost:27017/")
+
 
 
 @career_router.get(
     "/career_details/{application_id}",
-    response_model=CareerDetailsResponse,
     tags=["Career Details"],
 )
 async def get_career_summary(
@@ -444,8 +449,14 @@ async def get_career_summary(
                 highlight.append(
                     f"No starting date and ending date of employment found for {companies_without_dates[0]} in government documents"
                 )
+        # Handling existing & Current Document
+        existing_document = CareerDetailsResponse.objects(application_id=application_id, page_id=1).first()
+        if existing_document:
+            existing_document.delete()
 
-        return CareerDetailsResponse(
+        info_document2 =  CareerDetailsResponse(
+            application_id= application_id,
+            page_id= 1,
             all_experiences_govt_docs=final_exp_govt_docs,
             all_experiences_tenure=all_experiences_sorted_tenure,
             good_to_know=good_to_know,
@@ -455,6 +466,7 @@ async def get_career_summary(
             career_score=meter,
             career_score_text=meter_text,
         )
+        info_document2.save()
     except HTTPException as ht:
         raise ht
     except Exception as e:

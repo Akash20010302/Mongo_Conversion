@@ -12,6 +12,7 @@ class HouseholdIncome(SQLModel):
     total_family_income: float
 
 class Info(SQLModel):
+    application_id: int   #changed
     firstName: str
     middleName: Optional[str]
     lastName: str

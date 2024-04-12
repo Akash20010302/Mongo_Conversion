@@ -6,16 +6,65 @@ from db.db import get_db_analytics, get_db_backend
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from email_response import send_email
-from models.About import HouseholdIncome, Info
+# from models.About import HouseholdIncome, Info
+from mongomodels.About import HouseholdIncomeDocument, InfoDocument
 from starlette.status import HTTP_404_NOT_FOUND
 from tools.benchmark_tools import convert_to_datetime
 from starlette import status
 from loguru import logger
+from mongoengine import connect
 
 about_router = APIRouter()
 
+connect(db='trace_about', host="mongodb://localhost:27017/")
+
+
+# class HouseholdIncomeDocument(EmbeddedDocument):
+#     candidate_monthly_take = IntField()
+#     spouse_monthly_take = IntField(default=0)
+#     total_family_income = IntField()
+
+# class InfoDocument(Document):
+#     application_id = IntField(required=True)
+#     page_id = IntField(required=True, default=1)
+#     firstName = StringField()
+#     middleName = StringField()
+#     lastName = StringField()
+#     phone = StringField()
+#     email = StringField()
+#     city = StringField(default="N/A")
+#     gender = StringField()
+#     dob = StringField()
+#     age = IntField()
+#     marital_status = StringField()
+#     spouse_work_status = StringField(default="N/A")
+#     spouse_employer = StringField(default="N/A")
+#     kidsnum = IntField(default=0)
+#     adultdependents = IntField()
+#     home = BooleanField()
+#     car = BooleanField()
+#     twoWheeler = BooleanField()
+#     creditCard = BooleanField()
+#     Loan = BooleanField()
+#     Investment = BooleanField()
+#     education = StringField()
+#     education_institute = StringField(default="N/A")
+#     location = StringField()
+#     total_experience = IntField()
+#     work_industry = StringField(default="N/A")
+#     skillset = StringField(default="N/A")
+#     current_role = StringField()
+#     tenure_last_job = BooleanField()
+#     household_income = EmbeddedDocumentField(HouseholdIncomeDocument)
+#     meta = {
+#         'indexes':[
+#             {'fields':['application_id', 'page_id'], 'unique': True}
+#         ]
+#     }
+
+
 mandatory_fields = ["firstName", "lastName", "phone", "email", "dob", "age", "gender", "marital_status", "education", "experience", "city", "salary"]
-@about_router.get("/about_user/{id}", response_model=Info, tags=["About"])
+@about_router.get("/about_user/{id}", tags=["About"])
 async def about_user(
     id: int,
     db_1: Session = Depends(get_db_backend),
@@ -45,7 +94,7 @@ async def about_user(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The following mandatory fields are missing: {missing}")
         
         
-        salary_response = HouseholdIncome(
+        salary_response = HouseholdIncomeDocument(
             candidate_monthly_take=personal_info_1[12],
             spouse_monthly_take=0,
             total_family_income=personal_info_1[12],
@@ -144,11 +193,15 @@ async def about_user(
         role = result_role.fetchone()
 
         
-
+        existing_document = InfoDocument.objects(application_id=id, page_id=1).first()
+        if existing_document:
+            existing_document.delete()
+        
         # logger.debug(f"PERSONAL INFO: {personal_info_1}")
-
         # Combine data from both databases into the Info response
-        return Info(
+        info_document = InfoDocument(
+            application_id = id,
+            page_id = 1,
             firstName=personal_info_1[0],
             middleName=personal_info_1[1],
             lastName=personal_info_1[2],
@@ -186,6 +239,7 @@ async def about_user(
             tenure_last_job=last_job_duration,
             household_income=salary_response,
         )
+        info_document.save()
     except Exception as e:
         send_email(500, "Report_about_user")
         logger.error(f"An unexpected error occurred: {str(e)}")

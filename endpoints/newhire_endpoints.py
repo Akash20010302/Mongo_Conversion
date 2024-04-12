@@ -7,12 +7,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 from email_response import send_email
 
-from models.new_hire import Response, Info, Graph, CtcRange
+# from models.new_hire import Response, Info, Graph, CtcRange
+from mongomodels.new_hire import Response, Info, Graph, CtcRange
+from mongoengine import connect
 
 new_hire_router = APIRouter()
 
+connect(db='trace_about', host="mongodb://localhost:27017/")
 
-@new_hire_router.get("/new_hire/{id}", response_model=Response, tags=["New Hire"])
+
+
+
+@new_hire_router.get("/new_hire/{id}", tags=["New Hire"])
 async def get_past_ctc_accuracy(
     id: int,
     db_1: Session = Depends(get_db_backend),
@@ -169,8 +175,14 @@ async def get_past_ctc_accuracy(
             gap=gap,
             gap_percentage=gap_percentage,
         )
+        # Handling existing & Current Document
+        existing_document = Response.objects(application_id=id, page_id=1).first()
+        if existing_document:
+            existing_document.delete()
 
-        return Response(info=info_response, graph=graph_response)
+        info_document = Response(application_id=id, page_id=1,info=info_response, graph=graph_response)
+        logger.debug(info_document)
+        info_document.save()
     except Exception as e:
         send_email(500, "Report_new_hire")
         logger.error(f"An unexpected error occurred: {str(e)}")
