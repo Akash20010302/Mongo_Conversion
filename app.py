@@ -22,6 +22,8 @@ from endpoints.career_endpoints import career_router
 from endpoints.newhire_endpoints import new_hire_router
 from endpoints.credits_endpoints import credits_router
 from endpoints.financial_endpoints import financial_router
+from endpoints.courtcase_endpoints import courtcase_router
+from endpoints.academics_endpoints import academics_router
 
 os.environ['TZ'] = 'Asia/Kolkata'
 # time.tzset()
@@ -52,6 +54,8 @@ app.include_router(career_router)
 app.include_router(new_hire_router)
 app.include_router(credits_router)
 app.include_router(financial_router)
+app.include_router(courtcase_router)
+app.include_router(academics_router)
 
 
 @app.get("/sessionrollback", tags=["App"])
